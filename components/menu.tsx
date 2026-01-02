@@ -12,12 +12,12 @@ export const Menu = () => {
       <nav className="flex-1">
         <Button
           variant={
-            pathname === "/" || pathname.startsWith("/blog-post")
+            pathname.startsWith("/blog-posts") || pathname.startsWith("/blog-post")
               ? "default"
               : "ghost"
           }
           className="w-full justify-start mb-2"
-          onClick={() => router.push("/")}
+          onClick={() => router.push("/blog-posts")}
         >
           <FileTextIcon className="mr-2 h-4 w-4" />
           Posts

@@ -5,7 +5,6 @@ import { UserRole } from "./types";
 
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
-  console.log("Session in getCurrentUser:", session?.user);
   return session?.user;
 }
 

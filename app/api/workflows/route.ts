@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-utils";
-import { canManageWorkflows } from "@/lib/auth";
+import { canManageWorkflows, canViewWorkflows } from "@/lib/auth";
 
 /**
  * GET /api/workflows - List all workflows
@@ -17,9 +17,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!canManageWorkflows(user.role)) {
+    if (!canViewWorkflows(user.role)) {
       return NextResponse.json(
-        { error: "Forbidden - Insufficient permissions to manage workflows" },
+        { error: "Forbidden - Insufficient permissions to view workflows" },
         { status: 403 }
       );
     }

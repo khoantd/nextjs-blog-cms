@@ -60,7 +60,7 @@ export default function AuthError() {
               Authentication Error
             </CardTitle>
             <CardDescription className="text-center">
-              Loading error details...
+              Loading...
             </CardDescription>
           </CardHeader>
         </Card>

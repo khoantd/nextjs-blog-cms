@@ -61,8 +61,10 @@ export const approveBlogPostAiSuggestions = async (id: string) => {
   await requireRole("editor");
   console.log("Approving AI suggestions for blog post:", id);
   
+  let validatedId: string | undefined;
+  
   try {
-    const validatedId = validateInput(blogPostIdSchema, id);
+    validatedId = validateInput(blogPostIdSchema, id);
     
     // Send the approval event to Inngest
     await BlogPostService.sendEvent("blog-post.approve-ai-suggestions", { id: validatedId });
@@ -86,12 +88,16 @@ export const approveBlogPostAiSuggestions = async (id: string) => {
     
     // Fallback: try to approve directly without Inngest
     try {
+      if (!validatedId) {
+        validatedId = validateInput(blogPostIdSchema, id);
+      }
+      
       const blogPost = await prisma.blogPost.findUnique({
-        where: { id: Number(id) }
+        where: { id: Number(validatedId) }
       });
       
       if (blogPost?.markdownAiRevision) {
-        await BlogPostService.updateStatus(id, "published", {
+        await BlogPostService.updateStatus(validatedId, "published", {
           markdown: blogPost.markdownAiRevision as string,
         });
         console.log("Blog post approved and published via fallback");
@@ -99,7 +105,7 @@ export const approveBlogPostAiSuggestions = async (id: string) => {
         throw new AppError("No AI revision found to approve", 404, "NO_REVISION_FOUND");
       }
     } catch (fallbackError) {
-      logError(fallbackError as Error, { action: 'approveBlogPostAiSuggestions_fallback', id });
+      logError(fallbackError as Error, { action: 'approveBlogPostAiSuggestions_fallback', id: validatedId || id });
       throw new AppError("Failed to approve blog post. Please try again.", 500, "APPROVAL_FAILED");
     }
   }

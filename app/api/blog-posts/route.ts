@@ -1,15 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth-utils";
-import { canCreatePost } from "@/lib/auth";
+import { canCreatePost, canViewPosts } from "@/lib/auth";
 
 export async function GET() {
   try {
     const user = await getCurrentUser();
+    
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    // Check if user has permission to view blog posts
+    if (!canViewPosts(user.role)) {
+      return NextResponse.json(
+        { error: "Insufficient permissions to view posts" },
+        { status: 403 }
       );
     }
 
@@ -19,7 +28,7 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ blogPosts });
+    return NextResponse.json({ data: { blogPosts } });
   } catch (error) {
     console.error("Error fetching blog posts:", error);
     return NextResponse.json(
@@ -64,7 +73,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ blogPost }, { status: 201 });
+    return NextResponse.json({ data: { blogPost } }, { status: 201 });
   } catch (error) {
     console.error("Error creating blog post:", error);
     return NextResponse.json(

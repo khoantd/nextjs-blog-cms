@@ -19,6 +19,10 @@ export default withAuth(
         if (req.nextUrl.pathname.startsWith("/auth/")) {
           return true;
         }
+        // Allow public access to blog posts
+        if (req.nextUrl.pathname.startsWith("/blog-post/")) {
+          return true;
+        }
         // Require authentication for all other pages
         return !!token;
       },
@@ -35,11 +39,12 @@ export const config = {
     /*
      * Match all request paths except for the ones starting with:
      * - api/auth (auth API routes)
+     * - api/debug (debug API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.png$).*)",
+    "/((?!api/auth|api/debug|api/inngest|_next/static|_next/image|favicon.ico|.*\\.png$).*)",
   ],
 };

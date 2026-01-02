@@ -1,7 +1,7 @@
+import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth-utils";
-import { BlogPostList } from "@/components/blog-post-list";
 
 export default async function Dashboard() {
   await requireAuth();
-  return <BlogPostList />;
+  redirect("/blog-posts");
 }

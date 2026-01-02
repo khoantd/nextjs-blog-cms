@@ -1,6 +1,13 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaClient as PrismaClientWithEnv } from '@prisma/client'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClientWithEnv({
+  datasources: {
+    db: {
+      url: "file:./dev.db"
+    }
+  }
+})
 
 async function main() {
   // Create sample blog posts
@@ -61,16 +68,32 @@ Mastering TypeScript patterns will make you a more effective developer.`,
       trigger: 'blog-post.updated',
       enabled: true,
       workflow: {
-        steps: [
+        name: 'Blog Post Review Workflow',
+        description: 'Automated workflow for reviewing and publishing blog posts',
+        actions: [
           {
             id: '1',
-            type: 'ai-review',
-            name: 'AI Content Review'
+            kind: 'grammar_review',
+            name: 'AI Content Review',
+            description: 'Review content for grammar and style'
           },
           {
             id: '2', 
-            type: 'human-approval',
-            name: 'Human Approval'
+            kind: 'wait_for_approval',
+            name: 'Human Approval',
+            description: 'Wait for human approval of changes'
+          }
+        ],
+        edges: [
+          {
+            id: 'edge-source-1',
+            from: '$source',
+            to: '1'
+          },
+          {
+            id: 'edge-1-2',
+            from: '1',
+            to: '2'
           }
         ]
       },
@@ -84,16 +107,32 @@ Mastering TypeScript patterns will make you a more effective developer.`,
       trigger: 'blog-post.published',
       enabled: false,
       workflow: {
-        steps: [
+        name: 'Social Media Workflow',
+        description: 'Generate social media content for new blog posts',
+        actions: [
           {
             id: '1',
-            type: 'generate-tweets',
-            name: 'Generate Twitter Posts'
+            kind: 'generate_tweet_posts',
+            name: 'Generate Twitter Posts',
+            description: 'Generate Twitter posts for new blog posts'
           },
           {
             id: '2',
-            type: 'generate-linkedin', 
-            name: 'Generate LinkedIn Posts'
+            kind: 'generate_linkedin_posts', 
+            name: 'Generate LinkedIn Posts',
+            description: 'Generate LinkedIn posts for new blog posts'
+          }
+        ],
+        edges: [
+          {
+            id: 'edge-source-1',
+            from: '$source',
+            to: '1'
+          },
+          {
+            id: 'edge-1-2',
+            from: '1',
+            to: '2'
           }
         ]
       },

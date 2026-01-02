@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-utils";
+import { canManageWorkflows } from "@/lib/auth";
 
 /**
  * PUT /api/workflows/[id] - Enable/disable a workflow
@@ -16,6 +17,13 @@ export async function PUT(
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    if (!canManageWorkflows(user.role)) {
+      return NextResponse.json(
+        { error: "Forbidden - Insufficient permissions to manage workflows" },
+        { status: 403 }
       );
     }
 
@@ -66,6 +74,13 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    if (!canManageWorkflows(user.role)) {
+      return NextResponse.json(
+        { error: "Forbidden - Insufficient permissions to manage workflows" },
+        { status: 403 }
       );
     }
 

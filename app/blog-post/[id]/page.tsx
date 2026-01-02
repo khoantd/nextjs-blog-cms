@@ -18,70 +18,75 @@ export const revalidate = 0;
 
 export default async function BlogPost({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const blogPost = await loadBlogPost(id);
+  
+  try {
+    const blogPost = await loadBlogPost(id);
 
-  if (blogPost) {
-    const { default: MDXBlogPostContent } = await evaluate(
-      blogPost.markdown || "",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      runtime as any
-    );
+    if (blogPost) {
+      const { default: MDXBlogPostContent } = await evaluate(
+        blogPost.markdown || "",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        runtime as any
+      );
 
-    let MDXBlogPostAIContent: typeof MDXBlogPostContent | undefined;
+      let MDXBlogPostAIContent: typeof MDXBlogPostContent | undefined;
 
-    if (
-      blogPost.markdownAiRevision ||
-      blogPost.aiPublishingRecommendations
-    ) {
-      MDXBlogPostAIContent = (
-        await evaluate(
-          blogPost.markdownAiRevision ||
-            blogPost.aiPublishingRecommendations!,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          runtime as any
-        )
-      ).default;
-    }
+      if (
+        blogPost.markdownAiRevision ||
+        blogPost.aiPublishingRecommendations
+      ) {
+        MDXBlogPostAIContent = (
+          await evaluate(
+            blogPost.markdownAiRevision ||
+              blogPost.aiPublishingRecommendations!,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            runtime as any
+          )
+        ).default;
+      }
 
-    return (
-      <div>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Blog Post</h2>
-        </div>
-        <Tabs defaultValue="original">
-          <Card>
-            <CardHeader>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="original">Original</TabsTrigger>
-                {MDXBlogPostAIContent && (
-                  <TabsTrigger value="ai">
-                    {blogPost.markdownAiRevision
-                      ? "AI version"
-                      : "AI Publishing recommendations"}
-                  </TabsTrigger>
-                )}
-              </TabsList>
-            </CardHeader>
-            <CardContent>
-              <TabsContent value="original">
-                <MDXBlogPostContent components={mdxComponents} />
-              </TabsContent>
-              {MDXBlogPostAIContent && (
-                <TabsContent value="ai">
-                  <MDXBlogPostAIContent components={mdxComponents} />
+      return (
+        <div>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Blog Post</h2>
+          </div>
+          <Tabs defaultValue="original">
+            <Card>
+              <CardHeader>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="original">Original</TabsTrigger>
+                  {MDXBlogPostAIContent && (
+                    <TabsTrigger value="ai">
+                      {blogPost.markdownAiRevision
+                        ? "AI version"
+                        : "AI Publishing recommendations"}
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+              </CardHeader>
+              <CardContent>
+                <TabsContent value="original">
+                  <MDXBlogPostContent components={mdxComponents} />
                 </TabsContent>
-              )}
-            </CardContent>
-            <CardFooter className="flex justify-end align-bottom gap-4">
-              {(blogPost.status === "needs approval" || blogPost.status === "under review" || blogPost.status === "published") && (
-                <BlogPostActions id={blogPost.id.toString()} status={blogPost.status} />
-              )}
-            </CardFooter>
-          </Card>
-        </Tabs>
-      </div>
-    );
-  } else {
+                {MDXBlogPostAIContent && (
+                  <TabsContent value="ai">
+                    <MDXBlogPostAIContent components={mdxComponents} />
+                  </TabsContent>
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-end align-bottom gap-4">
+                {(blogPost.status === "needs approval" || blogPost.status === "under review" || blogPost.status === "published") && (
+                  <BlogPostActions id={blogPost.id.toString()} status={blogPost.status} />
+                )}
+              </CardFooter>
+            </Card>
+          </Tabs>
+        </div>
+      );
+    } else {
+      return notFound();
+    }
+  } catch (error) {
     return notFound();
   }
 }

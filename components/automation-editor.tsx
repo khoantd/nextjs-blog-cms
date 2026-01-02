@@ -32,12 +32,54 @@ export const AutomationEditor = ({ workflow }: { workflow: Workflow }) => {
     router.push("/workflows");
   }, [router, workflowDraft]);
 
-  // Transform workflow to match expected format
+  // Transform workflow to match expected format for Inngest UI
   const transformedWorkflow = {
     ...workflowDraft,
     created_at: workflowDraft.createdAt instanceof Date 
       ? workflowDraft.createdAt.toISOString() 
       : workflowDraft.createdAt,
+  };
+
+  // Convert database format to Inngest UI format
+  const workflowData = (transformedWorkflow.workflow as any) || {};
+  
+  // Convert actions to steps format if needed
+  const steps = workflowData.steps || workflowData.actions?.map((action: any, index: number) => ({
+    id: action.id || String(index + 1),
+    name: action.name || `Step ${index + 1}`,
+    kind: action.kind || action.type,
+    description: action.description || '',
+    inputs: action.inputs || action.config || {},
+  })) || [];
+
+  // Ensure edges exist - create default edges if none exist
+  const edges = workflowData.edges || [];
+  
+  // If we have steps but no edges, create default sequential edges
+  if (steps.length > 0 && edges.length === 0) {
+    // Add edge from source to first step
+    edges.push({
+      id: `edge-source-${steps[0].id}`,
+      from: "$source",
+      to: steps[0].id,
+    });
+    
+    // Add edges between steps
+    for (let i = 0; i < steps.length - 1; i++) {
+      edges.push({
+        id: `edge-${steps[i].id}-${steps[i + 1].id}`,
+        from: steps[i].id,
+        to: steps[i + 1].id,
+      });
+    }
+  }
+
+  // Create the workflow object expected by the UI
+  const uiWorkflow = {
+    name: workflowDraft.name || 'Untitled Workflow',
+    description: workflowDraft.description || '',
+    actions: steps,
+    edges,
   };
 
   return (
@@ -61,7 +103,7 @@ export const AutomationEditor = ({ workflow }: { workflow: Workflow }) => {
           <div className="h-svh max-h-[500px]">
             <Provider
               key={workflowDraft?.id}
-              workflow={workflowDraft?.workflow as any}
+              workflow={uiWorkflow as any}
               trigger={{
                 event: {
                   name: workflowDraft.trigger,

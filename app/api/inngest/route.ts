@@ -5,7 +5,7 @@ import { loadBlogPost } from "@/lib/loaders/blog-post";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env["OPENAI_API_KEY"] || process.env["LITELLM_API_KEY"],
+  apiKey: process.env["LITELLM_BASE_URL"] ? process.env["LITELLM_API_KEY"] : process.env["OPENAI_API_KEY"],
   baseURL: process.env["LITELLM_BASE_URL"] || undefined,
 });
 
