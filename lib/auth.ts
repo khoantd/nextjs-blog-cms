@@ -94,9 +94,10 @@ export const authOptions: NextAuthOptions = {
             const role: UserRole = isAdmin ? "admin" : "viewer";
 
             // Update user role immediately (synchronously)
-            await prismaClient.user.update({
+            await prismaClient.user.upsert({
               where: { email: user.email },
-              data: { role },
+              update: { role },
+              create: { email: user.email!, role, name: user.name, image: user.image },
             });
           }
         } catch (error) {
