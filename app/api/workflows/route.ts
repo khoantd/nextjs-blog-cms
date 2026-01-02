@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWorkflow, listWorkflows } from "@/lib/workflow-creator";
+import { prisma } from "@/lib/prisma";
 
 /**
  * GET /api/workflows - List all workflows
@@ -10,7 +10,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const enabledOnly = searchParams.get('enabled') === 'true';
     
-    const workflows = await listWorkflows(enabledOnly);
+    const workflows = await prisma.workflow.findMany({
+      where: enabledOnly ? { enabled: true } : undefined,
+      orderBy: { createdAt: 'desc' }
+    });
     
     return NextResponse.json({ workflows });
   } catch (error) {
@@ -26,7 +29,41 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    const workflow = await createWorkflow(body);
+    // Validate required fields
+    if (!body.name || !body.trigger || !body.workflow) {
+      return NextResponse.json(
+        { error: "Missing required fields: name, trigger, and workflow are required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if workflow with same name or trigger already exists
+    const existingWorkflow = await prisma.workflow.findFirst({
+      where: {
+        OR: [
+          { name: body.name },
+          { trigger: body.trigger }
+        ]
+      }
+    });
+
+    if (existingWorkflow) {
+      return NextResponse.json(
+        { error: `Workflow already exists with name: ${existingWorkflow.name} or trigger: ${existingWorkflow.trigger}` },
+        { status: 409 }
+      );
+    }
+
+    // Create the workflow in database
+    const workflow = await prisma.workflow.create({
+      data: {
+        name: body.name,
+        description: body.description,
+        trigger: body.trigger,
+        workflow: body.workflow,
+        enabled: body.enabled || false
+      }
+    });
     
     return NextResponse.json({ 
       message: "Workflow created successfully", 
@@ -34,21 +71,6 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error("Error creating workflow:", error);
-    
-    if (error instanceof Error && error.message.includes("already exists")) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 409 }
-      );
-    }
-    
-    if (error instanceof Error && error.message.includes("Missing required fields")) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
-    }
-    
     return NextResponse.json(
       { error: "Failed to create workflow" },
       { status: 500 }

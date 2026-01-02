@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { toggleWorkflow, deleteWorkflow } from "@/lib/workflow-creator";
+import { prisma } from "@/lib/prisma";
 
 /**
  * PUT /api/workflows/[id] - Enable/disable a workflow
@@ -29,7 +29,10 @@ export async function PUT(
       );
     }
 
-    const workflow = await toggleWorkflow(workflowId, enabled);
+    const workflow = await prisma.workflow.update({
+      where: { id: workflowId },
+      data: { enabled }
+    });
     
     return NextResponse.json({ 
       message: `Workflow ${enabled ? 'enabled' : 'disabled'} successfully`, 
@@ -58,7 +61,9 @@ export async function DELETE(
       );
     }
 
-    const workflow = await deleteWorkflow(workflowId);
+    const workflow = await prisma.workflow.delete({
+      where: { id: workflowId }
+    });
     
     return NextResponse.json({ 
       message: "Workflow deleted successfully", 

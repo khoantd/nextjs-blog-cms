@@ -1,5 +1,5 @@
-import WorkflowManager from "@/components/workflow-manager";
+import UnifiedAutomationManager from "@/components/unified-automation-manager";
 
 export default function WorkflowsPage() {
-  return <WorkflowManager />;
+  return <UnifiedAutomationManager />;
 }

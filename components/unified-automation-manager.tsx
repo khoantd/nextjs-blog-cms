@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { workflowTemplates, formatWorkflowAsJson, availableActions } from "@/lib/workflow-templates";
+import { EditIcon, PlusIcon, TrashIcon, SaveIcon } from "lucide-react";
+import Link from "next/link";
 
 interface Workflow {
   id: number;
@@ -25,7 +29,7 @@ interface WorkflowFormData {
   enabled: boolean;
 }
 
-export default function WorkflowManager() {
+export default function UnifiedAutomationManager() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -163,22 +167,28 @@ export default function WorkflowManager() {
   };
 
   if (loading) {
-    return <div className="p-6">Loading workflows...</div>;
+    return <div className="p-6">Loading automations...</div>;
   }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Workflow Management</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Automation Management</h1>
+          <p className="text-muted-foreground mt-2">
+            Create and manage workflow automations for your blog posts
+          </p>
+        </div>
         <Button onClick={() => setShowCreateForm(true)}>
-          Create New Workflow
+          <PlusIcon className="mr-2 h-4 w-4" />
+          Create Automation
         </Button>
       </div>
 
       {showCreateForm && (
         <Card>
           <CardHeader>
-            <CardTitle>Create New Workflow</CardTitle>
+            <CardTitle>Create New Automation</CardTitle>
             <CardDescription>
               Define a new workflow with triggers and steps, or start from a template
             </CardDescription>
@@ -213,7 +223,7 @@ export default function WorkflowManager() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Workflow Name
+                  Automation Name
                 </label>
                 <Input
                   value={formData.name}
@@ -234,7 +244,7 @@ export default function WorkflowManager() {
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
-                  placeholder="Brief description of the workflow"
+                  placeholder="Brief description of the automation"
                 />
               </div>
 
@@ -267,11 +277,34 @@ export default function WorkflowManager() {
                     setFormData({ ...formData, workflow: e.target.value })
                   }
                   placeholder={`{
-  "steps": [
+  "actions": [
     {
       "id": "1",
       "kind": "add_ToC",
       "name": "Add Table of Contents"
+    },
+    {
+      "id": "2", 
+      "kind": "grammar_review",
+      "name": "Grammar Review"
+    }
+  ],
+  "edges": [
+    { "from": "$source", "to": "1" },
+    { "from": "1", "to": "2" },
+    { "from": "2", "to": "$sink" }
+  ],
+  "name": "my-workflow",
+  "steps": [
+    {
+      "id": "1",
+      "type": "add_ToC",
+      "name": "Add Table of Contents"
+    },
+    {
+      "id": "2", 
+      "type": "grammar_review",
+      "name": "Grammar Review"
     }
   ]
 }`}
@@ -290,13 +323,13 @@ export default function WorkflowManager() {
                   }
                 />
                 <label htmlFor="enabled" className="text-sm font-medium">
-                  Enable workflow immediately
+                  Enable automation immediately
                 </label>
               </div>
 
               <div className="flex space-x-2">
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? "Creating..." : "Create Workflow"}
+                  {submitting ? "Creating..." : "Create Automation"}
                 </Button>
                 <Button
                   type="button"
@@ -315,64 +348,92 @@ export default function WorkflowManager() {
       )}
 
       <div className="grid gap-4">
-        {workflows.map((workflow) => (
-          <Card key={workflow.id}>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    {workflow.name}
-                    <Badge variant={workflow.enabled ? "default" : "secondary"}>
-                      {workflow.enabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription className="mt-2">
-                    {workflow.description || "No description"}
-                  </CardDescription>
+        {workflows.map((workflow) => {
+          const actions: any[] = (workflow.workflow as any)?.actions || [];
+          const steps: any[] = (workflow.workflow as any)?.steps || [];
+          
+          return (
+            <Card key={workflow.id}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      {workflow.name}
+                      <Badge variant={workflow.enabled ? "default" : "secondary"}>
+                        {workflow.enabled ? "Active" : "Inactive"}
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription className="mt-2">
+                      {workflow.description || "No description"}
+                    </CardDescription>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                    >
+                      <Link href={`/automation/${workflow.id}`}>
+                        <EditIcon className="mr-2 h-4 w-4" />
+                        Configure
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteWorkflow(workflow.id)}
+                    >
+                      <TrashIcon className="mr-2 h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      toggleWorkflow(workflow.id, !workflow.enabled)
-                    }
-                  >
-                    {workflow.enabled ? "Disable" : "Enable"}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => deleteWorkflow(workflow.id)}
-                  >
-                    Delete
-                  </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <strong>Trigger:</strong> {workflow.trigger}
+                      </div>
+                      <div>
+                        <strong>Created:</strong>{" "}
+                        {new Date(workflow.createdAt).toLocaleDateString()}
+                      </div>
+                      <div>
+                        <strong>Actions:</strong>{" "}
+                        {actions.length > 0 
+                          ? actions.map(({ name, kind }) => name || kind).join(", ")
+                          : steps.length > 0
+                          ? steps.map(({ name, kind }) => name || kind).join(", ")
+                          : "No actions defined"
+                        }
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id={`workflow-${workflow.id}`}
+                        checked={workflow.enabled}
+                        onCheckedChange={() =>
+                          toggleWorkflow(workflow.id, !workflow.enabled)
+                        }
+                      />
+                      <Label htmlFor={`workflow-${workflow.id}`}>
+                        {workflow.enabled ? "Active" : "Inactive"}
+                      </Label>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <strong>Trigger:</strong> {workflow.trigger}
-                </div>
-                <div>
-                  <strong>Created:</strong>{" "}
-                  {new Date(workflow.createdAt).toLocaleDateString()}
-                </div>
-                <div>
-                  <strong>Steps:</strong>{" "}
-                  {workflow.workflow?.steps?.length || 0} steps defined
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
 
         {workflows.length === 0 && (
           <Card>
             <CardContent className="text-center py-8">
               <p className="text-muted-foreground">
-                No workflows found. Create your first workflow to get started.
+                No automations found. Create your first automation to get started.
               </p>
             </CardContent>
           </Card>

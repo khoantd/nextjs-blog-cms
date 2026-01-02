@@ -84,7 +84,41 @@ export function getWorkflowTemplate(templateName: string): WorkflowTemplate | un
 }
 
 export function formatWorkflowAsJson(template: WorkflowTemplate): string {
-  return JSON.stringify({
-    steps: template.steps
-  }, null, 2);
+  // Convert steps to actions format expected by Inngest workflow editor
+  const actions = template.steps.map(step => ({
+    id: step.id,
+    kind: step.kind,
+    name: step.name
+  }));
+
+  // Create edges connecting the actions in sequence
+  const edges = [];
+  if (actions.length > 0) {
+    // Connect source to first action
+    edges.push({ from: "$source", to: actions[0].id });
+    
+    // Connect actions to each other
+    for (let i = 0; i < actions.length - 1; i++) {
+      edges.push({ from: actions[i].id, to: actions[i + 1].id });
+    }
+    
+    // Connect last action to sink
+    edges.push({ from: actions[actions.length - 1].id, to: "$sink" });
+  }
+
+  // Convert steps to use "type" instead of "kind" for consistency
+  const steps = template.steps.map(step => ({
+    id: step.id,
+    type: step.kind, // Use "type" instead of "kind" for steps
+    name: step.name
+  }));
+
+  const workflowData = {
+    actions,
+    edges,
+    name: template.name,
+    steps // Include steps with "type" field
+  };
+
+  return JSON.stringify(workflowData, null, 2);
 }

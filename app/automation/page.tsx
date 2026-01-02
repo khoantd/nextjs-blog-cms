@@ -1,5 +1,5 @@
-import { AutomationList } from "@/components/automation-list";
+import { redirect } from 'next/navigation';
 
-export default async function Dashboard() {
-  return <AutomationList />;
+export default function AutomationRedirect() {
+  redirect('/workflows');
 }

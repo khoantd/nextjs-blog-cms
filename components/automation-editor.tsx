@@ -29,7 +29,7 @@ export const AutomationEditor = ({ workflow }: { workflow: Workflow }) => {
 
   const onSaveWorkflow = useCallback(async () => {
     await updateWorkflow(workflowDraft);
-    router.push("/automation");
+    router.push("/workflows");
   }, [router, workflowDraft]);
 
   // Transform workflow to match expected format
