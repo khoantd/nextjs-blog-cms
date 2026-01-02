@@ -1,0 +1,39 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model BlogPost {
+  id                        Int      @id @default(autoincrement())
+  title                     String?
+  subtitle                  String?
+  status                    String?
+  markdown                  String?
+  markdownAiRevision        String?   @map("markdown_ai_revision")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  aiPublishingRecommendations String? @map("ai_publishing_recommendations")
+
+  @@map("blog_posts")
+}
+
+model Workflow {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now()) @map("created_at")
+  workflow    Json
+  enabled     Boolean  @default(false)
+  trigger     String?
+  description String?
+  name        String?
+
+  @@map("workflows")
+}
