@@ -73,8 +73,8 @@ export default async function BlogPost({ params }: { params: Promise<{ id: strin
               )}
             </CardContent>
             <CardFooter className="flex justify-end align-bottom gap-4">
-              {(blogPost.status === "needs approval" || blogPost.status === "under review") && (
-                <BlogPostActions id={blogPost.id.toString()} />
+              {(blogPost.status === "needs approval" || blogPost.status === "under review" || blogPost.status === "published") && (
+                <BlogPostActions id={blogPost.id.toString()} status={blogPost.status} />
               )}
             </CardFooter>
           </Card>

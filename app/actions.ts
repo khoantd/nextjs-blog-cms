@@ -112,6 +112,23 @@ export const publishBlogPost = async (id: string) => {
     },
   });
 };
+
+export const unpublishBlogPost = async (id: string) => {
+  await prisma.blogPost.update({
+    where: { id: Number(id) },
+    data: {
+      status: "draft",
+      markdownAiRevision: null,
+    },
+  });
+
+  await inngest.send({
+    name: "blog-post.unpublished",
+    data: {
+      id,
+    },
+  });
+};
 export const updateWorkflow = async (workflow: Workflow) => {
   await prisma.workflow.update({
     where: { id: workflow.id },

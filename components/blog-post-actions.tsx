@@ -1,12 +1,12 @@
 "use client";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SaveIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { SaveIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { approveBlogPostAiSuggestions, publishBlogPost, sendBlogPostToReview, revertBlogPostFromReview } from "@/app/actions";
+import { approveBlogPostAiSuggestions, publishBlogPost, sendBlogPostToReview, revertBlogPostFromReview, unpublishBlogPost } from "@/app/actions";
 
-export const BlogPostActions = ({ id }: { id: string }) => {
+export const BlogPostActions = ({ id, status }: { id: string; status?: string }) => {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -39,23 +39,12 @@ export const BlogPostActions = ({ id }: { id: string }) => {
     await executeAction("revert", () => revertBlogPostFromReview(id));
   }, [id, executeAction]);
 
-  const goToPreviousStep = useCallback(async () => {
-    await executeAction("previous", () => sendBlogPostToReview(id));
-  }, [id, executeAction]);
-
-  const goToNextStep = useCallback(async () => {
-    await executeAction("next", () => publishBlogPost(id));
+  const unpublish = useCallback(async () => {
+    await executeAction("unpublish", () => unpublishBlogPost(id));
   }, [id, executeAction]);
 
   return (
     <div className="flex gap-2 flex-wrap">
-      <Button variant={"outline"} onClick={goToPreviousStep} disabled={loading !== null}>
-        <ChevronLeft className="mr-2 h-4 w-4" /> 
-        {loading === "previous" ? "Loading..." : "Previous Step"}
-      </Button>
-      <Button variant={"outline"} onClick={goToNextStep} disabled={loading !== null}>
-        {loading === "next" ? "Loading..." : "Next Step"} <ChevronRight className="ml-2 h-4 w-4" />
-      </Button>
       <div className="flex gap-2 ml-auto">
         <Button variant={"outline"} onClick={revertFromReview} disabled={loading !== null}>
           <SaveIcon className="mr-2 h-4 w-4" /> 
@@ -69,6 +58,12 @@ export const BlogPostActions = ({ id }: { id: string }) => {
           <SaveIcon className="mr-2 h-4 w-4" /> 
           {loading === "approve" ? "Loading..." : "Approve & Publish"}
         </Button>
+        {status === "published" && (
+          <Button variant="destructive" onClick={unpublish} disabled={loading !== null}>
+            <SaveIcon className="mr-2 h-4 w-4" /> 
+            {loading === "unpublish" ? "Loading..." : "Unpublish"}
+          </Button>
+        )}
       </div>
     </div>
   );
