@@ -16,6 +16,7 @@ const errorMessages: Record<string, string> = {
   Configuration: "There is a problem with the server configuration.",
   AccessDenied: "You do not have permission to sign in.",
   Verification: "The verification token has expired or has already been used.",
+  OAuthAccountNotLinked: "This email is already associated with an account. Please contact support if you need to link your Google account.",
   Default: "An error occurred during authentication.",
 };
 
@@ -39,6 +40,18 @@ function AuthErrorContent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {error === "OAuthAccountNotLinked" && (
+            <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-800">
+              <p className="font-medium mb-2">What happened?</p>
+              <p className="mb-2">
+                Your email address is already registered, but your Google account isn't linked to it yet.
+                With the recent update, this should now work automatically. Please try signing in again.
+              </p>
+              <p className="text-xs text-blue-700 mt-2">
+                If the problem persists, the account may need to be manually linked in the database.
+              </p>
+            </div>
+          )}
           <Link href="/auth/signin" className="block">
             <Button className="w-full" size="lg">
               Try Again

@@ -5,10 +5,18 @@ import { notFound } from "next/navigation";
 export default async function Automation({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
+  const workflowId = parseInt(id);
+  
+  // Validate that id is a valid number
+  if (isNaN(workflowId)) {
+    notFound();
+  }
+  
   const workflow = await prisma.workflow.findUnique({
-    where: { id: parseInt(params.id) }
+    where: { id: workflowId }
   });
   
   if (workflow) {

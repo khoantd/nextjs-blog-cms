@@ -105,6 +105,14 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - Handle workflow states and approvals properly
 - Apply proper error handling for external service calls
 - Use ExternalServiceError for AI service failures
+- **CRITICAL Workflow Structure**: When creating workflows for the automation editor:
+  - **DO NOT** include edge to `$sink` - the Inngest workflow kit auto-generates it
+  - **DO** include explicit `id` fields for all edges (e.g., `{"id":"edge-source-1","from":"$source","to":"1"}`)
+  - **DO** include `description` fields in actions (matches working workflow structure)
+  - **DO** include workflow-level `description` in the workflow JSON
+  - **DO NOT** include both `steps` and `actions` arrays - only use `actions` to avoid conflicts
+  - Use `formatWorkflowAsJson()` from `/lib/workflow-templates.ts` for template-based workflows
+  - Reference "Blog Post Review Workflow" in seed data as the working structure example
 
 ## Development Guidelines
 

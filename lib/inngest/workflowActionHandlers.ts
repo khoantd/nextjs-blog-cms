@@ -68,7 +68,7 @@ export const actionsWithHandlers: EngineAction<typeof inngest>[] = [
 
       await step.run("save-ai-revision", async () => {
         await prisma.blogPost.update({
-          where: { id: BigInt(event.data.id) as any },
+          where: { id: Number(event.data.id) },
           data: {
             markdownAiRevision: aiRevision,
             status: "under review",
@@ -116,7 +116,7 @@ export const actionsWithHandlers: EngineAction<typeof inngest>[] = [
 
       await step.run("save-ai-revision", async () => {
         await prisma.blogPost.update({
-          where: { id: BigInt(event.data.id) as any },
+          where: { id: Number(event.data.id) },
           data: {
             markdownAiRevision: aiRevision,
             status: "under review",
@@ -135,7 +135,7 @@ export const actionsWithHandlers: EngineAction<typeof inngest>[] = [
 
       await step.run("update-blog-post-status", async () => {
         await prisma.blogPost.update({
-          where: { id: BigInt(event.data.id) as any },
+          where: { id: Number(event.data.id) },
           data: {
             status: "needs approval",
           },
@@ -156,7 +156,7 @@ export const actionsWithHandlers: EngineAction<typeof inngest>[] = [
       if (!approval) {
         await step.run("discard-ai-revision", async () => {
           await prisma.blogPost.update({
-            where: { id: BigInt(event.data.id) as any },
+            where: { id: Number(event.data.id) },
             data: {
               markdownAiRevision: null,
               status: "draft",
@@ -166,7 +166,7 @@ export const actionsWithHandlers: EngineAction<typeof inngest>[] = [
       } else {
         await step.run("apply-ai-revision", async () => {
           await prisma.blogPost.update({
-            where: { id: blogPost.id },
+            where: { id: Number(event.data.id) },
             data: {
               markdown: blogPost.markdownAiRevision,
               markdownAiRevision: null,
@@ -187,7 +187,7 @@ export const actionsWithHandlers: EngineAction<typeof inngest>[] = [
 
       await step.run("apply-ai-revision", async () => {
         await prisma.blogPost.update({
-          where: { id: blogPost.id },
+          where: { id: Number(event.data.id) },
           data: {
             markdown: blogPost.markdownAiRevision,
             markdownAiRevision: null,
@@ -240,7 +240,7 @@ export const actionsWithHandlers: EngineAction<typeof inngest>[] = [
 
       await step.run("save-ai-recommendations", async () => {
         await prisma.blogPost.update({
-          where: { id: BigInt(event.data.id) as any },
+          where: { id: Number(event.data.id) },
           data: {
             aiPublishingRecommendations: addAiPublishingSuggestion(
               workflowAction,
@@ -294,7 +294,7 @@ export const actionsWithHandlers: EngineAction<typeof inngest>[] = [
 
       await step.run("save-ai-recommendations", async () => {
         await prisma.blogPost.update({
-          where: { id: BigInt(event.data.id) as any },
+          where: { id: Number(event.data.id) },
           data: {
             aiPublishingRecommendations: addAiPublishingSuggestion(
               workflowAction,

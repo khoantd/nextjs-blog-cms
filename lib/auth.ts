@@ -26,21 +26,41 @@ export const authOptions: NextAuthOptions = {
           response_type: "code",
         },
       },
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   callbacks: {
     async jwt({ token, user, account }) {
       // Persist the user role and ID to the token
       if (user && account) {
-        // First time sign-in, fetch user from database and store role in token
+        // First time sign-in, fetch user from database and assign/update role
         try {
           if (!prismaClient?.user) {
             console.error('Prisma client or user model not available');
             return token;
           }
           
-          const dbUser = await prismaClient.user.findUnique({
+          // Determine role based on email domain or admin configuration
+          const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
+          const adminDomains = process.env.ADMIN_DOMAINS?.split(',').map(domain => domain.trim()) || [];
+          
+          const isAdmin = user.email && (
+            adminEmails.includes(user.email) || 
+            adminDomains.some(domain => user.email!.endsWith(`@${domain}`)) ||
+            user.email.endsWith("@yourdomain.com")
+          );
+          const role: UserRole = isAdmin ? "admin" : "viewer";
+
+          // Update user role in database (this runs after PrismaAdapter creates the user/account)
+          const dbUser = await prismaClient.user.upsert({
             where: { email: user.email! },
+            update: { role },
+            create: { 
+              email: user.email!, 
+              role, 
+              name: user.name || null, 
+              image: user.image || null 
+            },
             select: { id: true, role: true }
           });
           
@@ -69,42 +89,8 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async signIn({ user, account, profile }) {
-      // Auto-assign role based on email domain or set default
-      if (user.email) {
-        try {
-          if (!prismaClient?.user) {
-            console.error('Prisma client or user model not available in signIn');
-            return false;
-          }
-          
-          // Check if user exists and has a role
-          const existingUser = await prismaClient.user.findUnique({
-            where: { email: user.email! },
-            select: { role: true }
-          });
-
-          if (!existingUser) {
-            // First time sign-in, assign default role
-            const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
-            const adminDomains = process.env.ADMIN_DOMAINS?.split(',').map(domain => domain.trim()) || [];
-            
-            const isAdmin = adminEmails.includes(user.email!) || 
-                           adminDomains.some(domain => user.email!.endsWith(`@${domain}`)) ||
-                           user.email!.endsWith("@yourdomain.com");
-            const role: UserRole = isAdmin ? "admin" : "viewer";
-
-            // Update user role immediately (synchronously)
-            await prismaClient.user.upsert({
-              where: { email: user.email },
-              update: { role },
-              create: { email: user.email!, role, name: user.name, image: user.image },
-            });
-          }
-        } catch (error) {
-          console.error('Error in signIn callback:', error);
-          return false;
-        }
-      }
+      // Let PrismaAdapter handle User/Account creation automatically
+      // Role assignment is handled in the JWT callback after successful authentication
       return true;
     },
   },

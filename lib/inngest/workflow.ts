@@ -1,22 +1,31 @@
-import { Engine } from "@inngest/workflow-kit";
-
-import { loadWorkflow } from "../loaders/workflow";
 import { inngest } from "./client";
 import { actionsWithHandlers } from "./workflowActionHandlers";
+import { actions } from "./workflowActions";
 
-const workflowEngine = new Engine({
-  actions: actionsWithHandlers,
-  loader: loadWorkflow,
-});
-
+// Create a workflow kit compatible implementation
 export default inngest.createFunction(
   { id: "blog-post-workflow" },
   // Triggers
-  // - When a blog post is set to "review"
-  // - When a blog post is published
   [{ event: "blog-post.updated" }, { event: "blog-post.published" }],
   async ({ event, step }) => {
-    // When `run` is called, the loader function is called with access to the event
-    await workflowEngine.run({ event, step });
+    // Execute actions sequentially without nested step calls
+    for (let i = 0; i < actionsWithHandlers.length; i++) {
+      const actionHandler = actionsWithHandlers[i];
+      const action = actions[i];
+      
+      if (actionHandler && action) {
+        // Call the handler directly - it will manage its own steps
+        await actionHandler.handler({ 
+          event, 
+          step, 
+          workflowAction: {
+            ...action,
+            id: String(i + 1)
+          },
+          workflow: { actions: actions } as any,
+          state: {} as any
+        });
+      }
+    }
   }
 );

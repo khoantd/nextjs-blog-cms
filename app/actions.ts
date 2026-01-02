@@ -51,7 +51,7 @@ export const revertBlogPostFromReview = async (id: string) => {
   await requireRole("editor");
   try {
     await BlogPostService.updateStatus(id, "draft");
-    await BlogPostService.sendEvent("blog-post.updated", { id });
+    // Don't send event for revert to draft - no automation needed
   } catch (error) {
     throw handleError(error);
   }

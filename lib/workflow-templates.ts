@@ -85,39 +85,45 @@ export function getWorkflowTemplate(templateName: string): WorkflowTemplate | un
 
 export function formatWorkflowAsJson(template: WorkflowTemplate): string {
   // Convert steps to actions format expected by Inngest workflow editor
+  // Match the structure that works with the automation editor (like Blog Post Review Workflow)
   const actions = template.steps.map(step => ({
     id: step.id,
     kind: step.kind,
-    name: step.name
+    name: step.name,
+    description: step.name // Add description field to match working workflow structure
   }));
 
   // Create edges connecting the actions in sequence
+  // Add explicit id fields to edges to match working workflow structure
+  // NOTE: Do NOT include edge to $sink - the Inngest workflow kit auto-generates it
   const edges = [];
   if (actions.length > 0) {
     // Connect source to first action
-    edges.push({ from: "$source", to: actions[0].id });
+    edges.push({ 
+      id: `edge-source-${actions[0].id}`,
+      from: "$source", 
+      to: actions[0].id 
+    });
     
-    // Connect actions to each other
+    // Connect actions to each other (but NOT to sink - kit handles that)
     for (let i = 0; i < actions.length - 1; i++) {
-      edges.push({ from: actions[i].id, to: actions[i + 1].id });
+      edges.push({ 
+        id: `edge-${actions[i].id}-${actions[i + 1].id}`,
+        from: actions[i].id, 
+        to: actions[i + 1].id 
+      });
     }
-    
-    // Connect last action to sink
-    edges.push({ from: actions[actions.length - 1].id, to: "$sink" });
+    // Do NOT add edge to $sink - the Inngest workflow kit auto-generates it
   }
 
-  // Convert steps to use "type" instead of "kind" for consistency
-  const steps = template.steps.map(step => ({
-    id: step.id,
-    type: step.kind, // Use "type" instead of "kind" for steps
-    name: step.name
-  }));
-
+  // Create workflow data matching the structure that works with automation editor
+  // Include description at workflow level and only use actions (not steps) to avoid conflicts
   const workflowData = {
-    actions,
-    edges,
     name: template.name,
-    steps // Include steps with "type" field
+    description: template.description, // Add description at workflow level
+    actions, // Use actions array (matches working workflow structure)
+    edges
+    // Removed steps array to match working workflow structure and avoid conflicts
   };
 
   return JSON.stringify(workflowData, null, 2);
