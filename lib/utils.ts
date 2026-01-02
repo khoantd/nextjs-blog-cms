@@ -9,6 +9,31 @@ export function capitalize(str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const fetcher = (...args: [any]) =>
-  fetch(...args).then((res) => res.json());
+// Enhanced utility types and functions
+export interface ApiResponse<T = unknown> {
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export type FetcherArgs = [string, RequestInit?];
+
+// Type-safe fetcher function
+export const fetcher = async <T = unknown>(...args: FetcherArgs): Promise<T> => {
+  const response = await fetch(...args);
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  return response.json() as Promise<T>;
+};

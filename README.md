@@ -17,6 +17,19 @@
 
 This demo is Next.js blog back-office featuring some AI workflows helping with grammar fixes, generating Table of Contents or Tweets, built with [Inngest](https://www.inngest.com/?ref=github-workflow-kit-example-nextjs-blog-cms-readme), [Supabase](https://supabase.com) and [LiteLLM](https://github.com/BerriAI/litellm) for AI model proxying.
 
+## 🔐 New: Google OAuth Authentication
+
+This application now includes **secure Google OAuth authentication** with role-based access control (RBAC):
+
+- 🔑 **Google OAuth Sign-In** - Secure authentication with Google accounts
+- 👥 **Three User Roles** - Viewer, Editor, and Admin with hierarchical permissions
+- 🛡️ **Protected Routes** - All routes secured by default
+- 🎨 **Beautiful UI** - Custom sign-in pages and user profile display
+
+**Quick Setup:** See [QUICK_START_AUTH.md](QUICK_START_AUTH.md) for 5-minute setup guide.
+
+**Full Details:** See [AUTHENTICATION_SETUP.md](AUTHENTICATION_SETUP.md) for complete documentation.
+
 Get started by cloning this repo and following the below setup instructions or directly deploy this template on Vercel.
 
 - [Getting Started - Local setup](#getting-started-local-setup)
@@ -37,7 +50,8 @@ Get started by cloning this repo and following the below setup instructions or d
 
 To run this demo locally, you'll need the following:
 
-- a [Supabase account](https://supabase.com)
+- a [Google Cloud account](https://console.cloud.google.com/) for OAuth credentials
+- a [Supabase account](https://supabase.com) or use SQLite (default)
 - an [OpenAI account](https://platform.openai.com/) or access to any AI model supported by LiteLLM
 - [LiteLLM proxy](https://github.com/BerriAI/litellm) (optional, for model proxying and management)
 
@@ -61,9 +75,10 @@ yarn
 pnpm --ignore-workspace i
 ```
 
-3. Finally, copy your local `.env.example` as `.env.local` and configure your AI settings:
-   - For direct OpenAI access: Set `OPENAI_API_KEY`
-   - For LiteLLM proxy: Set `LITELLM_API_KEY` and `LITELLM_BASE_URL`
+3. Copy `.env.example` as `.env.local` and configure:
+   - **Google OAuth:** Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (see [QUICK_START_AUTH.md](QUICK_START_AUTH.md))
+   - **NextAuth:** Generate and set `NEXTAUTH_SECRET` with `openssl rand -base64 32`
+   - **AI Settings:** Set `OPENAI_API_KEY` or `LITELLM_API_KEY` + `LITELLM_BASE_URL`
    - Set `OPENAI_MODEL` to specify the model (default: gpt-4o-mini)
 
 ### 2. Database setup

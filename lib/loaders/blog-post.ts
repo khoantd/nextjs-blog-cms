@@ -12,5 +12,5 @@ export async function loadBlogPost(id: string): Promise<BlogPost> {
     throw new Error(`Blog post #${id} not found`);
   }
 
-  return blogPost;
+  return blogPost as BlogPost;
 }

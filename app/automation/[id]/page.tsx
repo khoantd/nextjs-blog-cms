@@ -12,7 +12,7 @@ export default async function Automation({
   });
   
   if (workflow) {
-    return <AutomationEditor workflow={workflow} />;
+    return <AutomationEditor workflow={workflow as any} />;
   } else {
     notFound();
   }

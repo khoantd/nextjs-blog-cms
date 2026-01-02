@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
 import { Menu } from '@/components/menu';
+import { Providers } from '@/components/providers';
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -28,19 +29,22 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
-        <div className="flex h-screen bg-gray-100 text-slate-900">
-          {/* Sidebar */}
-          <div className="w-64 bg-white shadow-md">
-            <div className="p-4">
-              <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-              <Menu />
+        <Providers>
+          <div className="flex h-screen bg-gray-100 text-slate-900">
+            {/* Sidebar */}
+            <div className="w-64 bg-white shadow-md">
+              <div className="p-4 flex flex-col h-full">
+                <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+                <Menu />
+              </div>
             </div>
-          </div>
 
-          {/* Main Content */}
-          <div className="flex-1 p-8 overflow-auto">{children}</div>
-        </div>
+            {/* Main Content */}
+            <div className="flex-1 p-8 overflow-auto">{children}</div>
+          </div>
+        </Providers>
       </body>
     </html>
   );

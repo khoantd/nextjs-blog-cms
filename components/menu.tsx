@@ -2,32 +2,36 @@
 import { Button } from "@/components/ui/button";
 import { FileTextIcon, ZapIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { UserProfile } from "./user-profile";
 
 export const Menu = () => {
   const pathname = usePathname();
   const router = useRouter();
   return (
-    <nav>
-      <Button
-        variant={
-          pathname === "/" || pathname.startsWith("/blog-post")
-            ? "default"
-            : "ghost"
-        }
-        className="w-full justify-start mb-2"
-        onClick={() => router.push("/")}
-      >
-        <FileTextIcon className="mr-2 h-4 w-4" />
-        Posts
-      </Button>
-      <Button
-        variant={pathname.startsWith("/workflows") ? "default" : "ghost"}
-        className="w-full justify-start"
-        onClick={() => router.push("/workflows")}
-      >
-        <ZapIcon className="mr-2 h-4 w-4" />
-        Automation
-      </Button>
-    </nav>
+    <div className="flex flex-col h-full">
+      <nav className="flex-1">
+        <Button
+          variant={
+            pathname === "/" || pathname.startsWith("/blog-post")
+              ? "default"
+              : "ghost"
+          }
+          className="w-full justify-start mb-2"
+          onClick={() => router.push("/")}
+        >
+          <FileTextIcon className="mr-2 h-4 w-4" />
+          Posts
+        </Button>
+        <Button
+          variant={pathname.startsWith("/workflows") ? "default" : "ghost"}
+          className="w-full justify-start"
+          onClick={() => router.push("/workflows")}
+        >
+          <ZapIcon className="mr-2 h-4 w-4" />
+          Automation
+        </Button>
+      </nav>
+      <UserProfile />
+    </div>
   );
 };

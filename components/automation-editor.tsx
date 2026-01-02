@@ -61,7 +61,7 @@ export const AutomationEditor = ({ workflow }: { workflow: Workflow }) => {
           <div className="h-svh max-h-[500px]">
             <Provider
               key={workflowDraft?.id}
-              workflow={workflowDraft?.workflow}
+              workflow={workflowDraft?.workflow as any}
               trigger={{
                 event: {
                   name: workflowDraft.trigger,
@@ -71,7 +71,7 @@ export const AutomationEditor = ({ workflow }: { workflow: Workflow }) => {
               onChange={(updated) => {
                 updateWorkflowDraft({
                   ...workflowDraft,
-                  workflow: updated,
+                  workflow: updated as any,
                 });
               }}
             >

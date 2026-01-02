@@ -1,0 +1,334 @@
+# Cursor Rules for Next.js Blog CMS with AI Workflows
+
+## Project Overview
+This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase, and LiteLLM. The application features automated blog post processing including grammar fixes, table of contents generation, and publishing workflows. **Now includes Google OAuth authentication with role-based access control (RBAC)**.
+
+**Architecture Note**: This codebase follows enterprise-grade patterns with service layers, comprehensive error handling, strict type safety, and secure authentication.
+
+## Tech Stack
+- **Framework**: Next.js 14 with App Router
+- **Language**: TypeScript with strict mode enabled
+- **Database**: SQLite with Prisma ORM
+- **Authentication**: NextAuth.js v4 with Google OAuth provider
+- **Styling**: Tailwind CSS with shadcn/ui components
+- **AI Integration**: Inngest workflows with LiteLLM proxy
+- **UI Components**: Radix UI primitives with custom components
+- **State Management**: SWR for data fetching
+- **Icons**: Lucide React
+- **Validation**: Zod for schema validation
+- **Error Handling**: Custom error classes with centralized logging
+
+## Code Style Guidelines
+
+### File Structure
+- Use the App Router structure in `/app`
+- Components in `/components` directory
+- Shared utilities and types in `/lib`
+- Database schema in `/prisma`
+- Server actions in `/app/actions.ts`
+- Error handling in `/lib/errors.ts`
+- Validation schemas in `/lib/validation.ts`
+- Constants in `/lib/constants.ts`
+- **Authentication**: `/lib/auth.ts` (NextAuth config & RBAC)
+- **Auth utilities**: `/lib/auth-utils.ts` (server-side helpers)
+- **Auth types**: `/types/next-auth.d.ts` (TypeScript extensions)
+
+### TypeScript (Enhanced)
+- Strict mode is enabled - all types must be properly defined
+- Use type exports from `/lib/types.ts` (includes BlogPostStatus, Workflow, User, UserRole types)
+- Prefer explicit return types for functions
+- Use `@/*` path alias for imports
+- **CRITICAL**: Never use `any` types - use proper interfaces or unknown with type guards
+- Use utility types from `/lib/utils.ts` (ApiResponse, PaginatedResponse)
+- Apply validation schemas for all input data
+- **Auth types**: Extend NextAuth types in `/types/next-auth.d.ts` for session data
+
+### React Components (Enhanced)
+- Use `"use client"` directive for components with hooks or interactivity
+- Use `"use server"` for server actions
+- Follow the existing component naming convention (PascalCase)
+- Use shadcn/ui components from `/components/ui`
+- Use typed SWR hooks with ApiResponse pattern
+- Apply proper error boundaries and loading states
+- Use proper TypeScript interfaces for props
+- **Auth**: Use `useSession()` from `next-auth/react` for client-side auth
+- **Permissions**: Use permission helpers from `/lib/auth.ts` (canEditPost, canDeletePost, etc.)
+
+### Database (Enhanced)
+- Use Prisma client from `/lib/prisma.ts`
+- Follow the existing schema structure in `/prisma/schema.prisma`
+- **CRITICAL**: Use service classes from `/app/actions.ts` instead of direct Prisma calls
+- Use BlogPostService for all blog post operations
+- Handle errors with custom error classes (DatabaseError, ValidationError)
+- Apply validation before database operations
+- **Auth models**: User, Account, Session, VerificationToken are managed by NextAuth/Prisma adapter
+- **Migrations**: Run `npm run db:generate` and `npm run db:migrate` after schema changes
+
+### Error Handling (NEW)
+- Use custom error classes from `/lib/errors.ts`
+- Apply consistent error handling pattern: try-catch with handleError()
+- Use logError() for structured error logging with context
+- Never throw generic Error - use specific error types
+- Implement graceful error recovery in server actions
+
+### Input Validation
+- Use Zod schemas from `/lib/validation.ts` for all inputs
+- Apply validateInput() helper for schema validation
+- Use sanitization functions for user content
+- Validate all API route inputs and server action parameters
+- Never trust external input - always validate
+
+### Authentication & Authorization (NEW)
+- **Client-side**: Use `useSession()` hook to access user session and role
+- **Server-side**: Use helpers from `/lib/auth-utils.ts`:
+  - `getCurrentUser()` - Get current user (returns null if not authenticated)
+  - `requireAuth()` - Require authentication (redirects if not authenticated)
+  - `requireRole(role)` - Require specific role (redirects if insufficient permissions)
+- **Permissions**: Use RBAC helpers from `/lib/auth.ts`:
+  - `canCreatePost(role)`, `canEditPost(role)`, `canDeletePost(role)`
+  - `canManageWorkflows(role)`, `canManageUsers(role)`
+  - `hasPermission(userRole, requiredRole)` - General permission check
+- **Roles**: Three hierarchical roles: viewer (1) < editor (2) < admin (3)
+- **Route Protection**: Middleware in `/middleware.ts` protects all routes except auth pages
+- **Environment**: OAuth credentials in `.env.local` (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUTH_SECRET)
+
+### Styling
+- Use Tailwind CSS classes
+- Follow the existing color scheme (gray-100, slate-900)
+- Use responsive design patterns
+- Maintain consistent spacing and typography
+
+### AI Workflows (Enhanced)
+- Use Inngest client from `/lib/inngest/client`
+- Follow existing workflow patterns in `/lib/workflow-templates.ts`
+- Use constants from `/lib/constants.ts` for event names (WORKFLOW_EVENTS)
+- Handle workflow states and approvals properly
+- Apply proper error handling for external service calls
+- Use ExternalServiceError for AI service failures
+
+## Development Guidelines
+
+### Environment Variables
+- Use `.env.local` for local development
+- Reference `.env.example` for required variables
+- **Required for Auth**: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUTH_SECRET, NEXTAUTH_URL
+- Include Supabase URL/keys and AI API keys
+- Never commit `.env.local` - use `.env.example` as template
+
+### API Routes (Enhanced)
+- Place API routes in `/app/api`
+- Use proper HTTP methods and error handling
+- Return consistent ApiResponse<T> pattern
+- Include proper TypeScript types
+- **NEW**: Apply validation schemas to all request bodies
+- **NEW**: Use custom error classes for error responses
+- **NEW**: Implement proper status codes based on error types
+
+### Testing
+- Test database operations thoroughly
+- Verify workflow integrations
+- Test AI prompt responses
+- Validate form inputs and user interactions
+
+### Performance
+- Use SWR for data fetching with proper caching
+- Optimize database queries with Prisma
+- Use Next.js Image optimization for images
+- Implement proper loading states
+
+## Common Patterns
+
+### Server Actions (Enhanced)
+```typescript
+"use server";
+import { validateInput } from "@/lib/validation";
+import { handleError, logError } from "@/lib/errors";
+import { BlogPostService } from "@/app/actions";
+
+export const actionName = async (params: InputType) => {
+  try {
+    const validatedParams = validateInput(inputSchema, params);
+    return await BlogPostService.operation(validatedParams);
+  } catch (error) {
+    logError(error as Error, { action: 'actionName', params });
+    throw handleError(error);
+  }
+};
+```
+
+### Component Structure (Enhanced)
+```typescript
+"use client";
+import { ApiResponse } from "@/lib/utils";
+import { fetcher } from "@/lib/utils";
+
+interface ComponentProps {
+  // Properly typed props
+}
+
+export const ComponentName = ({ prop }: ComponentProps) => {
+  const { data, error, isLoading } = useSWR<ApiResponse<DataType>>(
+    "/api/endpoint",
+    fetcher,
+    { refreshInterval: SWR_CONFIG.REFRESH_INTERVAL }
+  );
+  
+  if (error) return <ErrorBoundary error={error} />;
+  if (isLoading) return <LoadingState />;
+  
+  return <div>{/* JSX with shadcn/ui components */}</div>;
+};
+```
+
+### Data Fetching (Enhanced)
+```typescript
+const { data, error, isLoading } = useSWR<ApiResponse<DataType>>(
+  "/api/endpoint",
+  fetcher,
+  { 
+    refreshInterval: SWR_CONFIG.REFRESH_INTERVAL,
+    errorRetryCount: SWR_CONFIG.ERROR_RETRY_COUNT,
+    onError: (error: Error) => logError(error, { context: 'data-fetching' })
+  }
+);
+```
+
+### Error Handling Pattern
+```typescript
+import { AppError, DatabaseError, handleError, logError } from "@/lib/errors";
+
+// In server actions
+try {
+  // Operation
+} catch (error) {
+  logError(error as Error, { context: 'operation-details' });
+  throw new DatabaseError('Operation failed', error as Error);
+}
+
+// In components
+const handleError = (error: Error) => {
+  logError(error, { context: 'component-operation' });
+  // Show user-friendly error message
+};
+```
+
+### Authentication Patterns (NEW)
+```typescript
+// Client-side permission check
+"use client";
+import { useSession } from "next-auth/react";
+import { canEditPost } from "@/lib/auth";
+
+export const Component = () => {
+  const { data: session } = useSession();
+  const canEdit = session?.user?.role ? canEditPost(session.user.role) : false;
+
+  return canEdit ? <EditButton /> : null;
+};
+
+// Server-side authentication
+import { requireAuth, requireRole } from "@/lib/auth-utils";
+
+export default async function Page() {
+  const user = await requireAuth(); // Redirects if not authenticated
+  // Or require specific role:
+  const admin = await requireRole("admin"); // Redirects if not admin
+
+  return <div>Hello {user.name}</div>;
+}
+
+// Protected server action
+"use server";
+import { requireRole } from "@/lib/auth-utils";
+
+export async function deletePost(id: string) {
+  await requireRole("admin"); // Only admins can delete
+  // Delete logic
+}
+```
+
+## Key Files to Understand
+- `/app/actions.ts` - Server actions with BlogPostService and error handling
+- `/lib/errors.ts` - Custom error classes and error handling utilities
+- `/lib/validation.ts` - Zod schemas and validation helpers
+- `/lib/constants.ts` - Application constants and configuration
+- `/lib/types.ts` - Enhanced TypeScript types (BlogPostStatus, Workflow, User, UserRole)
+- `/lib/utils.ts` - Type-safe utilities (ApiResponse, fetcher)
+- **`/lib/auth.ts`** - NextAuth configuration and RBAC permission helpers
+- **`/lib/auth-utils.ts`** - Server-side authentication utilities
+- **`/types/next-auth.d.ts`** - NextAuth TypeScript type extensions
+- **`/middleware.ts`** - Route protection middleware
+- `/components/unified-automation-manager.tsx` - Main workflow editor
+- `/components/user-profile.tsx` - User profile sidebar component
+- `/lib/workflow-templates.ts` - AI workflow definitions
+- `/lib/inngest/` - Inngest client and workflow definitions
+- `/prisma/schema.prisma` - Database schema (includes User, Account, Session models)
+- `CODE_REVIEW_SUMMARY.md` - Documentation of applied best practices
+- **`AUTHENTICATION_SETUP.md`** - Complete authentication setup guide
+- **`QUICK_START_AUTH.md`** - 5-minute quick start for authentication
+
+## Git Workflow
+- Use conventional commits
+- Test workflows before committing
+- Update database migrations if schema changes
+- Verify AI integrations work properly
+- Run TypeScript checks before committing
+- Validate all new inputs with Zod schemas
+- Ensure proper error handling for new features
+- **Auth changes**: Test authentication flow after modifying auth code
+- **Schema changes**: Run `npm run db:generate && npm run db:migrate`
+
+## Authentication System
+
+### User Roles & Permissions
+- **Viewer** (default role):
+  - Can view blog posts
+  - Cannot create, edit, or publish content
+  - Cannot manage workflows or users
+
+- **Editor**:
+  - All viewer permissions
+  - Can create, edit, and publish blog posts
+  - Can manage workflows and automations
+  - Cannot delete posts or manage users
+
+- **Admin**:
+  - All editor permissions
+  - Can delete blog posts
+  - Can manage user roles
+  - Full system access
+
+### Role Assignment
+- Default role for new users: `viewer`
+- Auto-assignment by email domain in `/lib/auth.ts:48-56`
+- Manual role changes via Prisma Studio or database
+
+### Session Management
+- Database-backed sessions (not JWT)
+- 30-day session expiration
+- HTTPOnly cookies for security
+- Automatic session refresh
+
+### Protected Routes
+- All routes protected by default via `/middleware.ts`
+- Exceptions: `/api/auth/*`, `/auth/signin`, `/auth/error`
+- Unauthenticated users redirected to sign-in page
+- Insufficient permissions redirected to `/unauthorized`
+
+### Google OAuth Setup
+1. Create OAuth credentials in Google Cloud Console
+2. Add redirect URI: `http://localhost:3000/api/auth/callback/google`
+3. Set environment variables in `.env.local`
+4. See `QUICK_START_AUTH.md` for complete setup
+
+## Deployment Notes
+- Environment variables must be configured in production
+- Database migrations should be run manually
+- Inngest workflows need proper event keys
+- Supabase connection must be secured
+- **Auth deployment**:
+  - Set production GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
+  - Generate new NEXTAUTH_SECRET for production (never reuse dev secret)
+  - Set NEXTAUTH_URL to production domain (e.g., https://yourdomain.com)
+  - Add production redirect URI to Google Cloud Console
+  - Configure `next.config.mjs` images.remotePatterns for Google profile images

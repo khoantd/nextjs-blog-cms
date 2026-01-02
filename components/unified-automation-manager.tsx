@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { workflowTemplates, formatWorkflowAsJson, availableActions } from "@/lib/workflow-templates";
 import { EditIcon, PlusIcon, TrashIcon, SaveIcon } from "lucide-react";
 import Link from "next/link";
+import { canManageWorkflows, canDeletePost } from "@/lib/auth";
 
 interface Workflow {
   id: number;
@@ -30,6 +32,7 @@ interface WorkflowFormData {
 }
 
 export default function UnifiedAutomationManager() {
+  const { data: session } = useSession();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -42,6 +45,11 @@ export default function UnifiedAutomationManager() {
     enabled: false
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Permission checks
+  const userRole = session?.user?.role;
+  const canEdit = userRole ? canManageWorkflows(userRole) : false;
+  const canDelete = userRole ? canDeletePost(userRole) : false;
 
   useEffect(() => {
     fetchWorkflows();
@@ -179,10 +187,12 @@ export default function UnifiedAutomationManager() {
             Create and manage workflow automations for your blog posts
           </p>
         </div>
-        <Button onClick={() => setShowCreateForm(true)}>
-          <PlusIcon className="mr-2 h-4 w-4" />
-          Create Automation
-        </Button>
+        {canEdit && (
+          <Button onClick={() => setShowCreateForm(true)}>
+            <PlusIcon className="mr-2 h-4 w-4" />
+            Create Automation
+          </Button>
+        )}
       </div>
 
       {showCreateForm && (
@@ -368,24 +378,28 @@ export default function UnifiedAutomationManager() {
                     </CardDescription>
                   </div>
                   <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                    >
-                      <Link href={`/automation/${workflow.id}`}>
-                        <EditIcon className="mr-2 h-4 w-4" />
-                        Configure
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => deleteWorkflow(workflow.id)}
-                    >
-                      <TrashIcon className="mr-2 h-4 w-4" />
-                      Delete
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                      >
+                        <Link href={`/automation/${workflow.id}`}>
+                          <EditIcon className="mr-2 h-4 w-4" />
+                          Configure
+                        </Link>
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteWorkflow(workflow.id)}
+                      >
+                        <TrashIcon className="mr-2 h-4 w-4" />
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -410,18 +424,20 @@ export default function UnifiedAutomationManager() {
                         }
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id={`workflow-${workflow.id}`}
-                        checked={workflow.enabled}
-                        onCheckedChange={() =>
-                          toggleWorkflow(workflow.id, !workflow.enabled)
-                        }
-                      />
-                      <Label htmlFor={`workflow-${workflow.id}`}>
-                        {workflow.enabled ? "Active" : "Inactive"}
-                      </Label>
-                    </div>
+                    {canEdit && (
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id={`workflow-${workflow.id}`}
+                          checked={workflow.enabled}
+                          onCheckedChange={() =>
+                            toggleWorkflow(workflow.id, !workflow.enabled)
+                          }
+                        />
+                        <Label htmlFor={`workflow-${workflow.id}`}>
+                          {workflow.enabled ? "Active" : "Inactive"}
+                        </Label>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

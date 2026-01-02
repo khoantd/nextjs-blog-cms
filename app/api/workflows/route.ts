@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth-utils";
+import { canManageWorkflows } from "@/lib/auth";
 
 /**
  * GET /api/workflows - List all workflows
@@ -7,6 +9,21 @@ import { prisma } from "@/lib/prisma";
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    if (!canManageWorkflows(user.role)) {
+      return NextResponse.json(
+        { error: "Forbidden - Insufficient permissions to manage workflows" },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const enabledOnly = searchParams.get('enabled') === 'true';
     
@@ -27,6 +44,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    if (!canManageWorkflows(user.role)) {
+      return NextResponse.json(
+        { error: "Forbidden - Insufficient permissions to manage workflows" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     
     // Validate required fields
