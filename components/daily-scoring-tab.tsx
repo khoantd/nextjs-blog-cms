@@ -65,13 +65,14 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const fetchDailyScoring = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Use database-backed API instead of CSV-based approach
+      // First try to get existing data
       const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/daily-scoring-db`, {
         method: 'POST',
         headers: {
@@ -86,14 +87,54 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
       const result = await response.json();
 
       if (result.success) {
-        setData(result.data);
-        
-        // Show message if data is from cache or if no data exists
-        if (result.data.message) {
-          if (result.data.fromCache) {
-            console.log('✅ Data loaded from database cache');
+        // If no data exists, try to generate it
+        if (result.data.analysis.totalDays === 0) {
+          console.log('No existing data found, generating daily scoring data...');
+          setIsGenerating(true);
+          
+          const generateResponse = await fetch(`/api/stock-analyses/${stockAnalysisId}/generate-daily-scoring`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+
+          if (!generateResponse.ok) {
+            throw new Error('Failed to generate daily scoring data');
+          }
+
+          const generateResult = await generateResponse.json();
+          
+          if (generateResult.success) {
+            // After generating, fetch the data again
+            const newResponse = await fetch(`/api/stock-analyses/${stockAnalysisId}/daily-scoring-db`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            });
+
+            if (newResponse.ok) {
+              const newResult = await newResponse.json();
+              if (newResult.success) {
+                setData(newResult.data);
+                console.log('✅ Daily scoring data generated and loaded');
+                return;
+              }
+            }
           } else {
-            console.log('ℹ️ No existing data found in database');
+            setError(generateResult.error || 'Failed to generate daily scoring data');
+          }
+        } else {
+          setData(result.data);
+          
+          // Show message if data is from cache or if no data exists
+          if (result.data.message) {
+            if (result.data.fromCache) {
+              console.log('✅ Data loaded from database cache');
+            } else {
+              console.log('ℹ️ No existing data found in database');
+            }
           }
         }
       } else {
@@ -103,6 +144,7 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
       setError('Network error occurred');
     } finally {
       setLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -141,7 +183,7 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
         <CardContent className="flex items-center justify-center py-8">
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin" />
-            <span>Analyzing daily scoring patterns...</span>
+            <span>{isGenerating ? 'Generating daily scoring data...' : 'Analyzing daily scoring patterns...'}</span>
           </div>
         </CardContent>
       </Card>

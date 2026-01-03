@@ -135,11 +135,9 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      data: { 
-        stockAnalysis: updatedAnalysis,
-        factorCount: factorData.length,
-        message: `Successfully regenerated ${factorData.length} factor records`
-      }
+      data: factorData,
+      fromCache: false,
+      message: `Successfully regenerated ${factorData.length} factor records`
     });
 
   } catch (error) {

@@ -35,6 +35,7 @@ export function EarningsTab({ symbol }: EarningsTabProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   useEffect(() => {
     fetchEarnings();
@@ -57,6 +58,32 @@ export function EarningsTab({ symbol }: EarningsTabProps) {
       setError(err instanceof Error ? err.message : 'Failed to fetch earnings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNewEarnings = async () => {
+    setFetching(true);
+    setError('');
+    
+    try {
+      const response = await fetch('/api/earnings/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols: [symbol] }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh earnings data after fetching
+        await fetchEarnings();
+      } else {
+        setError(data.error || 'Failed to fetch earnings data');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch earnings');
+    } finally {
+      setFetching(false);
     }
   };
 
@@ -134,8 +161,8 @@ export function EarningsTab({ symbol }: EarningsTabProps) {
           <div className="text-center text-muted-foreground">
             <DollarSign className="h-12 w-12 mx-auto mb-2 opacity-50" />
             <p>No earnings data available for {symbol}</p>
-            <Button onClick={fetchEarnings} className="mt-4">
-              Fetch Earnings Data
+            <Button onClick={fetchNewEarnings} disabled={fetching} className="mt-4">
+              {fetching ? 'Fetching...' : 'Fetch Earnings Data'}
             </Button>
           </div>
         </CardContent>
