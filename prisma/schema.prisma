@@ -93,3 +93,100 @@ model VerificationToken {
   @@unique([identifier, token])
   @@map("verification_tokens")
 }
+
+model StockAnalysis {
+  id                        Int      @id @default(autoincrement())
+  symbol                    String   // Stock symbol (e.g., SNAP, AAPL)
+  name                      String?  // Company name
+  csvFilePath               String?  @map("csv_file_path") // Path to uploaded CSV
+  status                    String?  // draft, analyzing, completed
+  analysisResults           String?  @map("analysis_results") // JSON string with results
+  aiInsights                String?  @map("ai_insights") // AI-generated insights
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+  minPctChange              Float    @default(4.0) @map("min_pct_change") // Threshold percentage
+
+  // Relations
+  dailyFactorData           DailyFactorData[]
+  dailyScores               DailyScore[]
+  factorTables              FactorTable[]
+
+  @@map("stock_analyses")
+}
+
+model DailyFactorData {
+  id            Int      @id @default(autoincrement())
+  stockAnalysisId Int     @map("stock_analysis_id")
+  date          String   // ISO date string (YYYY-MM-DD)
+  close         Float    // Closing price
+  open          Float?   // Opening price
+  high          Float?   // High price
+  low           Float?   // Low price
+  volume        Int?     // Trading volume
+  pctChange     Float?   @map("pct_change") // Percentage change
+  
+  // Technical indicators
+  ma20          Float?   // 20-day moving average
+  ma50          Float?   // 50-day moving average
+  ma200         Float?   // 200-day moving average
+  rsi           Float?   // Relative Strength Index
+  
+  // Factor flags
+  volumeSpike   Boolean  @default(false) @map("volume_spike")
+  marketUp      Boolean? @map("market_up")
+  sectorUp      Boolean? @map("sector_up")
+  earningsWindow Boolean? @map("earnings_window")
+  breakMa50     Boolean  @default(false) @map("break_ma50")
+  breakMa200    Boolean  @default(false) @map("break_ma200")
+  rsiOver60     Boolean  @default(false) @map("rsi_over_60")
+  newsPositive  Boolean? @map("news_positive")
+  shortCovering Boolean? @map("short_covering")
+  macroTailwind Boolean? @map("macro_tailwind")
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  stockAnalysis StockAnalysis @relation(fields: [stockAnalysisId], references: [id], onDelete: Cascade)
+
+  @@unique([stockAnalysisId, date])
+  @@map("daily_factor_data")
+}
+
+model DailyScore {
+  id              Int      @id @default(autoincrement())
+  stockAnalysisId Int     @map("stock_analysis_id")
+  date            String   // ISO date string (YYYY-MM-DD)
+  score           Float    // Daily score (0.0 - 1.0)
+  factorCount     Int      @map("factor_count") // Number of active factors
+  aboveThreshold  Boolean  @default(false) @map("above_threshold")
+  
+  // Score breakdown (JSON)
+  breakdown       String?  // JSON string with factor contributions
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  stockAnalysis   StockAnalysis @relation(fields: [stockAnalysisId], references: [id], onDelete: Cascade)
+
+  @@unique([stockAnalysisId, date])
+  @@map("daily_scores")
+}
+
+model FactorTable {
+  id              Int      @id @default(autoincrement())
+  stockAnalysisId Int     @map("stock_analysis_id")
+  transactionId   Int     @map("transaction_id") // Transaction number (Tx)
+  date            String   // ISO date string (YYYY-MM-DD)
+  
+  // Factor data as JSON to store all factor values
+  factorData      String   @map("factor_data") // JSON string with factor values
+  
+  // Metadata
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  stockAnalysis   StockAnalysis @relation(fields: [stockAnalysisId], references: [id], onDelete: Cascade)
+
+  @@unique([stockAnalysisId, transactionId])
+  @@index([stockAnalysisId])
+  @@map("factor_tables")
+}

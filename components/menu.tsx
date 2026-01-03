@@ -1,6 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { FileTextIcon, ZapIcon } from "lucide-react";
+import { FileTextIcon, ZapIcon, TrendingUp } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { UserProfile } from "./user-profile";
 
@@ -21,6 +21,18 @@ export const Menu = () => {
         >
           <FileTextIcon className="mr-2 h-4 w-4" />
           Posts
+        </Button>
+        <Button
+          variant={
+            pathname.startsWith("/stock-analyses") || pathname.startsWith("/stock-analysis")
+              ? "default"
+              : "ghost"
+          }
+          className="w-full justify-start mb-2"
+          onClick={() => router.push("/stock-analyses")}
+        >
+          <TrendingUp className="mr-2 h-4 w-4" />
+          Stock Analysis
         </Button>
         <Button
           variant={pathname.startsWith("/workflows") ? "default" : "ghost"}

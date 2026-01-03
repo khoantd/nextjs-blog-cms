@@ -123,3 +123,6 @@ export const canManageWorkflows = (role: UserRole) => hasPermission(role, "edito
 export const canManageUsers = (role: UserRole) => hasPermission(role, "admin");
 export const canViewPosts = (role: UserRole) => role === "viewer" || role === "editor" || role === "admin";
 export const canViewWorkflows = (role: UserRole) => role === "viewer" || role === "editor" || role === "admin";
+export const canCreateStockAnalysis = (role: UserRole) => hasPermission(role, "editor");
+export const canViewStockAnalyses = (role: UserRole) => role === "viewer" || role === "editor" || role === "admin";
+export const canDeleteStockAnalysis = (role: UserRole) => hasPermission(role, "admin");

@@ -15,6 +15,11 @@ export default withAuth(
   {
     callbacks: {
       authorized: ({ token, req }) => {
+        // Allow API routes to handle their own authentication
+        // They will return proper JSON 401/403 responses
+        if (req.nextUrl.pathname.startsWith("/api/")) {
+          return true;
+        }
         // Allow access to auth pages when not authenticated
         if (req.nextUrl.pathname.startsWith("/auth/")) {
           return true;

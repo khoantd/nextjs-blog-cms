@@ -1,0 +1,55 @@
+import { StockFactor, FactorAnalysis } from '../stock-factors';
+
+export type StockAnalysisStatus = 'draft' | 'analyzing' | 'completed' | 'failed';
+
+export interface Transaction {
+  tx: number;
+  date: string;
+  close: number;
+  pctChange: number;
+  factors?: StockFactor[];
+  factorCount?: number;
+}
+
+export interface StockAnalysisResult {
+  symbol: string;
+  totalDays: number;
+  transactionsFound: number;
+  transactions: Transaction[];
+  minPctChange: number;
+  factorAnalysis?: {
+    analyses: FactorAnalysis[];
+    summary: {
+      totalDays: number;
+      factorCounts: Partial<Record<StockFactor, number>>;
+      factorFrequency: Partial<Record<StockFactor, number>>;
+      averageFactorsPerDay: number;
+    };
+    correlation?: Record<StockFactor, {
+      correlation: number;
+      avgReturn: number;
+      occurrences: number;
+    }>;
+  };
+}
+
+export interface StockAnalysis {
+  id: number;
+  symbol: string;
+  name: string | null;
+  csvFilePath: string | null;
+  status: StockAnalysisStatus | null;
+  analysisResults: string | null; // JSON stringified StockAnalysisResult
+  aiInsights: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  minPctChange: number;
+}
+
+export interface CreateStockAnalysisInput {
+  symbol: string;
+  name?: string;
+  csvContent: string;
+  minPctChange?: number;
+  overwrite?: boolean;
+}

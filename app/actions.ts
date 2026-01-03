@@ -6,6 +6,7 @@ import { AppError, DatabaseError, handleError, logError } from "@/lib/errors";
 import { validateInput, blogPostIdSchema } from "@/lib/validation";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth-utils";
+import { analyzeStockData, createFactorTable } from "@/lib/data-analysis-danfo";
 
 // Base class for blog post operations
 class BlogPostService {
@@ -192,5 +193,53 @@ export const updateUserRole = async (email: string, role: 'viewer' | 'editor' | 
     return await UserService.updateUserRole(email, role);
   } catch (error) {
     throw handleError(error);
+  }
+};
+
+// Stock factor analysis server action
+export const createStockFactorTable = async (analysisResults: string, minPctChange: number = 4.0) => {
+  try {
+    console.log('Creating factor table from analysis results with minPctChange:', minPctChange);
+    
+    // Parse the analysis results to get transaction data
+    const results = JSON.parse(analysisResults);
+    
+    if (!results.transactions || !Array.isArray(results.transactions)) {
+      throw new Error('No transaction data found in analysis results');
+    }
+    
+    // Create factor data from existing transactions
+    const factorData = results.transactions.map((tx: any, index: number) => {
+      // Extract factors from the transaction if available, otherwise create basic structure
+      const factors = tx.factors || [];
+      
+      // Map existing factors to our factor structure
+      const factorMap: Record<string, number | null> = {
+        "volume_spike": factors.includes('volume_spike') ? 1 : 0,
+        "break_ma50": factors.includes('break_ma50') ? 1 : 0,
+        "break_ma200": factors.includes('break_ma200') ? 1 : 0,
+        "rsi_over_60": factors.includes('rsi_over_60') ? 1 : 0,
+        // AI-powered factors (null for now, will be populated by AI later)
+        "market_up": null,
+        "sector_up": null,
+        "earnings_window": null,
+        "news_positive": null,
+        "short_covering": null,
+        "macro_tailwind": null
+      };
+      
+      return {
+        "Tx": tx.tx || index + 1,
+        "Date": tx.date,
+        ...factorMap
+      };
+    });
+    
+    console.log(`Generated factor table with ${factorData.length} transactions`);
+    
+    return { success: true, data: factorData };
+  } catch (error) {
+    console.error('Error creating factor table:', error);
+    throw new AppError('Failed to create factor table', 500, 'FACTOR_TABLE_ERROR');
   }
 };
