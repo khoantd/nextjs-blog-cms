@@ -3,22 +3,95 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "./prisma";
 import { UserRole } from "./types";
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+interface GoogleAuthConfig {
+  web: {
+    client_id: string;
+    project_id: string;
+    auth_uri: string;
+    token_uri: string;
+    auth_provider_x509_cert_url: string;
+    client_secret: string;
+    redirect_uris: string[];
+    javascript_origins: string[];
+  };
+}
+
+// Server-side Google auth configuration loading
+function loadGoogleAuthConfig(): GoogleAuthConfig | null {
+  try {
+    const configPath = join(process.cwd(), 'google_authen.json');
+    const configContent = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(configContent) as GoogleAuthConfig;
+    
+    console.log('✅ Loaded Google auth config from google_authen.json');
+    return config;
+  } catch (error) {
+    console.error('❌ Error loading Google auth config from google_authen.json:', error);
+    return null;
+  }
+}
+
+function getGoogleClientId(): string | null {
+  // First try to load from JSON file
+  const config = loadGoogleAuthConfig();
+  if (config?.web?.client_id) {
+    return config.web.client_id;
+  }
+  
+  // Fallback to environment variable
+  return process.env.GOOGLE_CLIENT_ID || null;
+}
+
+function getGoogleClientSecret(): string | null {
+  // First try to load from JSON file
+  const config = loadGoogleAuthConfig();
+  if (config?.web?.client_secret) {
+    return config.web.client_secret;
+  }
+  
+  // Fallback to environment variable
+  return process.env.GOOGLE_CLIENT_SECRET || null;
+}
 
 // Type assertion for PrismaAdapter compatibility
 const prismaClient = prisma as any;
 
 if (process.env.NODE_ENV === "development") {
-  console.log('Google Client ID:', process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Not set');
-  console.log('Google Client Secret:', process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set');
+  const clientId = getGoogleClientId();
+  const clientSecret = getGoogleClientSecret();
+  const envClientId = process.env.GOOGLE_CLIENT_ID;
+  const envClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  
+  console.log('Google Client ID:', clientId ? 'Set' : 'Not set');
+  console.log('Google Client Secret:', clientSecret ? 'Set' : 'Not set');
   console.log('NextAuth URL:', process.env.NEXTAUTH_URL);
+  
+  // Determine config source more accurately
+  let configSource = 'Unknown';
+  const isEnvPlaceholder = envClientId === 'your_google_client_id_here' || 
+                         envClientSecret === 'your_google_client_secret_here' ||
+                         !envClientId || !envClientSecret;
+  
+  if (clientId && isEnvPlaceholder) {
+    configSource = 'JSON file';
+  } else if (!isEnvPlaceholder) {
+    configSource = 'Environment variables';
+  } else if (clientId) {
+    configSource = 'JSON file (fallback)';
+  }
+  
+  console.log('Config Source:', configSource);
 }
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: getGoogleClientId() || process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: getGoogleClientSecret() || process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
           prompt: "consent",
@@ -105,7 +178,7 @@ export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === "development",
 };
 
-// Role-based access control helper functions
+// Role-based access control helper functions (server-side)
 export const hasPermission = (userRole: UserRole, requiredRole: UserRole): boolean => {
   const roleHierarchy: Record<UserRole, number> = {
     viewer: 1,

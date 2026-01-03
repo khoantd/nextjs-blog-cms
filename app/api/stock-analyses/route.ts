@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import type { CreateStockAnalysisInput } from "@/lib/types/stock-analysis";
 import { analyzeStockDataFromCSV } from "@/lib/services/stock-analysis";
+import { saveFactorAnalysisToDatabase } from "@/lib/services/stock-factor-service";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-utils";
 import { canViewStockAnalyses, canCreateStockAnalysis } from "@/lib/auth";
+import { writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
 
 /**
  * GET /api/stock-analyses
@@ -81,6 +84,14 @@ export async function POST(request: Request) {
     const analysisResult = analyzeStockDataFromCSV(csvContent, symbol, minPctChange);
     console.log('[Stock Analysis] Analysis complete, transactions found:', analysisResult.transactionsFound);
 
+    // Save CSV file for future factor analysis
+    const csvDir = join(process.cwd(), 'uploads', 'stock-csvs');
+    mkdirSync(csvDir, { recursive: true });
+    const csvFileName = `${symbol.toUpperCase()}_${Date.now()}.csv`;
+    const csvFilePath = join(csvDir, csvFileName);
+    writeFileSync(csvFilePath, csvContent);
+    console.log('[Stock Analysis] CSV file saved to:', csvFilePath);
+
     // Check for duplicate: same symbol with same analysis results
     const existingAnalysis = await prisma.stockAnalysis.findFirst({
       where: {
@@ -113,10 +124,11 @@ export async function POST(request: Request) {
         data: {
           symbol: symbol.toUpperCase(),
           name: name || null,
-          status: 'completed',
+          status: 'processing',
           analysisResults: JSON.stringify(analysisResult),
           aiInsights: null,
           minPctChange,
+          csvFilePath,
           updatedAt: new Date()
         }
       });
@@ -128,14 +140,35 @@ export async function POST(request: Request) {
         data: {
           symbol: symbol.toUpperCase(),
           name: name || null,
-          csvFilePath: null,
-          status: 'completed',
+          csvFilePath,
+          status: 'processing',
           analysisResults: JSON.stringify(analysisResult),
           aiInsights: null,
           minPctChange
         }
       });
       console.log('[Stock Analysis] Database record created with ID:', stockAnalysis.id);
+    }
+
+    // Generate and save complete factor analysis
+    console.log('[Stock Analysis] Generating complete factor analysis...');
+    try {
+      await saveFactorAnalysisToDatabase(stockAnalysis.id, csvContent, analysisResult);
+      
+      // Update status to completed
+      stockAnalysis = await prisma.stockAnalysis.update({
+        where: { id: stockAnalysis.id },
+        data: { status: 'completed' }
+      });
+      
+      console.log('[Stock Analysis] Factor analysis completed successfully');
+    } catch (factorError) {
+      console.error('[Stock Analysis] Factor analysis failed:', factorError);
+      // Update status to factor_failed
+      stockAnalysis = await prisma.stockAnalysis.update({
+        where: { id: stockAnalysis.id },
+        data: { status: 'factor_failed' }
+      });
     }
 
     return NextResponse.json(

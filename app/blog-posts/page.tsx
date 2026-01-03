@@ -1,7 +1,5 @@
-import { requireAuth } from "@/lib/auth-utils";
 import { BlogPostList } from "@/components/blog-post-list";
 
-export default async function BlogPostsPage() {
-  await requireAuth();
+export default function BlogPostsPage() {
   return <BlogPostList />;
 }

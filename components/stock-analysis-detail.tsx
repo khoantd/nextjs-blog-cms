@@ -4,13 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, TrendingUp, Calendar, DollarSign, BarChart3, Table, Brain, LineChart, Calculator } from "lucide-react";
+import { ArrowLeft, TrendingUp, Calendar, DollarSign, BarChart3, Table, Brain, LineChart, Calculator, Loader2, Activity } from "lucide-react";
 import Link from "next/link";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
 import { FACTOR_DESCRIPTIONS } from "@/lib/stock-factors";
 import { StockFactorTableBackend } from "@/components/stock-factor-table-backend";
 import { StockChart } from "@/components/stock-chart";
 import { DailyScoringTab } from "@/components/daily-scoring-tab";
+import { EarningsTab } from "@/components/earnings-tab";
+import { DataQualityDashboard } from "@/components/data-quality-dashboard";
+import { useRealTimeStatus } from "@/lib/hooks/use-real-time-status";
 
 interface StockAnalysisDetailProps {
   analysis: StockAnalysis;
@@ -21,16 +24,71 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
     ? JSON.parse(analysis.analysisResults)
     : null;
 
+  // Real-time status updates
+  const { 
+    status: realTimeStatus, 
+    lastUpdated, 
+    progress, 
+    message, 
+    isPolling 
+  } = useRealTimeStatus({ 
+    analysisId: analysis.id, 
+    pollingInterval: 3000, 
+    enabled: true 
+  });
+
+  // Use real-time status if available, otherwise fall back to static status
+  const currentStatus = realTimeStatus || analysis.status;
+
   const getStatusColor = (status: string | null) => {
     switch (status) {
       case "completed":
         return "bg-green-500";
       case "analyzing":
         return "bg-blue-500";
+      case "processing":
+        return "bg-blue-500 animate-pulse";
+      case "ai_processing":
+        return "bg-purple-500 animate-pulse";
+      case "ai_completed":
+        return "bg-emerald-500";
+      case "factor_failed":
+        return "bg-orange-500";
       case "failed":
         return "bg-red-500";
       default:
         return "bg-gray-500";
+    }
+  };
+
+  const getStatusIcon = (status: string | null) => {
+    switch (status) {
+      case "processing":
+      case "ai_processing":
+        return <Loader2 className="h-3 w-3 animate-spin" />;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusText = (status: string | null) => {
+    switch (status) {
+      case "completed":
+        return "completed";
+      case "analyzing":
+        return "analyzing";
+      case "processing":
+        return "processing";
+      case "ai_processing":
+        return "AI processing";
+      case "ai_completed":
+        return "AI completed";
+      case "factor_failed":
+        return "factor failed";
+      case "failed":
+        return "failed";
+      default:
+        return "draft";
     }
   };
 
@@ -66,9 +124,18 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
             <div>
               <div className="flex items-center gap-3">
                 <CardTitle className="text-4xl">{analysis.symbol}</CardTitle>
-                <Badge className={getStatusColor(analysis.status)}>
-                  {analysis.status || "draft"}
+                <Badge className={getStatusColor(currentStatus)}>
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(currentStatus)}
+                    {getStatusText(currentStatus)}
+                    {isPolling && <Loader2 className="h-3 w-3 animate-spin" />}
+                  </div>
                 </Badge>
+                {message && (
+                  <div className="text-sm text-muted-foreground">
+                    {message}
+                  </div>
+                )}
               </div>
               {analysis.name && (
                 <CardDescription className="text-lg mt-2">
@@ -181,8 +248,12 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
 
       {/* Data and Factor Analysis Tabs */}
       {results && (
-        <Tabs defaultValue="data" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
             <TabsTrigger value="data" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
               Data
@@ -199,7 +270,83 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
               <Calculator className="h-4 w-4" />
               Daily Scoring
             </TabsTrigger>
+            <TabsTrigger value="earnings" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Earnings
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="overview" className="space-y-4">
+            <DataQualityDashboard 
+              analysisId={analysis.id}
+              symbol={analysis.symbol}
+              status={currentStatus}
+              onRetryFactorGeneration={() => {
+                // Navigate to factors tab and trigger generation
+                const factorsTab = document.querySelector('[value="factors"]') as HTMLElement;
+                factorsTab?.click();
+              }}
+              onRetryAIAnalysis={() => {
+                // Could trigger AI analysis here
+                console.log('Retry AI analysis clicked');
+              }}
+              isGeneratingFactors={currentStatus === 'processing'}
+              isAnalyzingAI={currentStatus === 'ai_processing'}
+              metrics={{
+                technicalIndicators: {
+                  calculated: true, // This would be determined by checking if technical indicators exist
+                  completeness: 85, // This would be calculated based on available data
+                  availableIndicators: ['MA20', 'MA50', 'MA200', 'RSI', 'Volume']
+                },
+                factorData: {
+                  exists: results.factorAnalysis ? true : false,
+                  completeness: results.factorAnalysis ? 75 : 0,
+                  totalFactors: results.transactions?.length || 0,
+                  aiFactorsAvailable: true
+                },
+                dailyScoring: {
+                  available: true, // This would be checked from the database
+                  completeness: 60, // This would be calculated
+                  scoredDays: 15, // This would be fetched from database
+                  totalDays: results.transactions?.length || 0
+                },
+                aiAnalysis: {
+                  completed: currentStatus === 'ai_completed',
+                  inProgress: currentStatus === 'ai_processing',
+                  insightsAvailable: !!analysis.aiInsights
+                },
+                earnings: {
+                  dataAvailable: false, // This would be checked from earnings data
+                  lastUpdated: undefined
+                }
+              }}
+            />
+            
+            {/* Real-time Status Indicator */}
+            {isPolling && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <div className="text-sm">
+                      <div className="font-medium text-blue-800">Live Updates Active</div>
+                      <div className="text-blue-600">Last updated: {lastUpdated.toLocaleTimeString()}</div>
+                      {progress > 0 && (
+                        <div className="mt-1">
+                          <div className="w-full bg-blue-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
 
           <TabsContent value="data" className="space-y-4">
             {results.transactions.length > 0 ? (
@@ -318,6 +465,10 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
               csvFilePath={analysis.csvFilePath || undefined}
               symbol={analysis.symbol}
             />
+          </TabsContent>
+          
+          <TabsContent value="earnings" className="space-y-4">
+            <EarningsTab symbol={analysis.symbol} />
           </TabsContent>
         </Tabs>
       )}

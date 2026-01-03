@@ -28,6 +28,9 @@ export default withAuth(
         if (req.nextUrl.pathname.startsWith("/blog-post/")) {
           return true;
         }
+        if (req.nextUrl.pathname.startsWith("/blog-posts")) {
+          return true;
+        }
         // Require authentication for all other pages
         return !!token;
       },

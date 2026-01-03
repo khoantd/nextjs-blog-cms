@@ -1,6 +1,6 @@
 import { StockFactor, FactorAnalysis } from '../stock-factors';
 
-export type StockAnalysisStatus = 'draft' | 'analyzing' | 'completed' | 'failed';
+export type StockAnalysisStatus = 'draft' | 'analyzing' | 'completed' | 'failed' | 'processing' | 'factor_failed' | 'ai_processing' | 'ai_completed';
 
 export interface Transaction {
   tx: number;

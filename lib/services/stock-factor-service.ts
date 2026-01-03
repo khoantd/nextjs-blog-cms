@@ -337,6 +337,176 @@ export function formatFactorAnalysisResults(
 }
 
 /**
+ * Save complete factor analysis to database
+ * Integrates daily factor data, daily scores, and factor tables
+ */
+export async function saveFactorAnalysisToDatabase(
+  stockAnalysisId: number,
+  csvContent: string,
+  analysisResult: any
+) {
+  console.log(`[Factor Service] Saving factor analysis for stock analysis ID: ${stockAnalysisId}`);
+  
+  try {
+    // Parse CSV and perform complete factor analysis
+    const stockData = parseStockCSV(csvContent);
+    const dataWithPctChange = calculatePctChanges(stockData);
+    
+    // Perform comprehensive factor analysis
+    const factorAnalysisResult = performFactorAnalysis(dataWithPctChange, {
+      scoreConfig: {
+        weights: {
+          volume_spike: 0.25,
+          market_up: 0.20,
+          earnings_window: 0.15,
+          break_ma50: 0.15,
+          rsi_over_60: 0.10,
+          sector_up: 0.08,
+          break_ma200: 0.05,
+          news_positive: 0.02,
+          short_covering: 0.03,
+          macro_tailwind: 0.02
+        },
+        threshold: 0.45,
+        minFactorsRequired: 2
+      }
+    });
+    
+    // Save daily factor data
+    console.log(`[Factor Service] Saving ${factorAnalysisResult.enrichedData.length} days of factor data`);
+    const factorDataToSave = factorAnalysisResult.enrichedData.map((day: any) => ({
+      stockAnalysisId,
+      date: day.Date,
+      close: day.Close,
+      open: day.Open,
+      high: day.High,
+      low: day.Low,
+      volume: day.Volume,
+      pctChange: day.pct_change,
+      ma20: day.ma20 || null,
+      ma50: day.ma50 || null,
+      ma200: day.ma200 || null,
+      rsi: day.rsi || null,
+      volumeSpike: day.volume_spike || false,
+      marketUp: day.market_up || false,
+      sectorUp: day.sector_up || false,
+      earningsWindow: day.earnings_window || false,
+      breakMa50: day.break_ma50 || false,
+      breakMa200: day.break_ma200 || false,
+      rsiOver60: day.rsi_over_60 || false,
+      newsPositive: day.news_positive || false,
+      shortCovering: day.short_covering || false,
+      macroTailwind: day.macro_tailwind || false
+    }));
+    
+    // Import prisma dynamically to avoid circular dependencies
+    const { prisma } = await import('@/lib/prisma');
+    
+    // Bulk insert daily factor data
+    for (const data of factorDataToSave) {
+      await prisma.dailyFactorData.upsert({
+        where: {
+          stockAnalysisId_date: {
+            stockAnalysisId: data.stockAnalysisId,
+            date: data.date
+          }
+        },
+        update: data,
+        create: data
+      });
+    }
+    
+    // Save daily scores
+    console.log(`[Factor Service] Saving ${factorAnalysisResult.dailyScores.length} daily scores`);
+    const dailyScoresToSave = factorAnalysisResult.dailyScores.map((score: any) => ({
+      stockAnalysisId,
+      date: score.date,
+      score: score.score,
+      factorCount: score.factorCount,
+      aboveThreshold: score.aboveThreshold,
+      breakdown: JSON.stringify(score.breakdown)
+    }));
+    
+    // Bulk insert daily scores
+    for (const score of dailyScoresToSave) {
+      await prisma.dailyScore.upsert({
+        where: {
+          stockAnalysisId_date: {
+            stockAnalysisId: score.stockAnalysisId,
+            date: score.date
+          }
+        },
+        update: score,
+        create: score
+      });
+    }
+    
+    // Save factor table data for transactions
+    console.log(`[Factor Service] Saving factor table for ${analysisResult.transactions.length} transactions`);
+    const factorTableData = analysisResult.transactions.map((tx: any, index: number) => {
+      // Extract factors from the transaction if available
+      const factors = tx.factors || [];
+      
+      // Map existing factors to our factor structure
+      const factorMap = {
+        "volume_spike": factors.includes('volume_spike') ? 1 : 0,
+        "break_ma50": factors.includes('break_ma50') ? 1 : 0,
+        "break_ma200": factors.includes('break_ma200') ? 1 : 0,
+        "rsi_over_60": factors.includes('rsi_over_60') ? 1 : 0,
+        // AI-powered factors (null for now, will be populated by AI later)
+        "market_up": null,
+        "sector_up": null,
+        "earnings_window": null,
+        "news_positive": null,
+        "short_covering": null,
+        "macro_tailwind": null
+      };
+      
+      return {
+        stockAnalysisId,
+        transactionId: tx.tx || index + 1,
+        date: tx.date,
+        factorData: JSON.stringify(factorMap)
+      };
+    });
+    
+    // Bulk insert factor table data
+    for (const row of factorTableData) {
+      await prisma.factorTable.upsert({
+        where: {
+          stockAnalysisId_transactionId: {
+            stockAnalysisId: row.stockAnalysisId,
+            transactionId: row.transactionId
+          }
+        },
+        update: {
+          date: row.date,
+          factorData: row.factorData,
+          updatedAt: new Date()
+        },
+        create: row
+      });
+    }
+    
+    console.log(`[Factor Service] Successfully saved complete factor analysis:`);
+    console.log(`  - Daily factor data: ${factorDataToSave.length} days`);
+    console.log(`  - Daily scores: ${dailyScoresToSave.length} scores`);
+    console.log(`  - Factor table: ${factorTableData.length} transactions`);
+    
+    return {
+      success: true,
+      dailyFactorDataCount: factorDataToSave.length,
+      dailyScoresCount: dailyScoresToSave.length,
+      factorTableCount: factorTableData.length
+    };
+    
+  } catch (error) {
+    console.error('[Factor Service] Error saving factor analysis:', error);
+    throw error;
+  }
+}
+
+/**
  * Generate daily prediction for current market conditions
  */
 export function generateDailyPrediction(

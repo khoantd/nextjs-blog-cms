@@ -8,7 +8,7 @@ import { useSession } from "next-auth/react";
 
 import { type BlogPost, type BlogPostStatus } from "@/lib/types";
 import { ApiResponse, fetcher } from "@/lib/utils";
-import { canCreatePost, canEditPost } from "@/lib/auth";
+import { canCreatePost, canEditPost } from "@/lib/client-auth";
 
 import {
   Card,

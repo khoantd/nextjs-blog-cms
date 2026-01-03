@@ -231,26 +231,26 @@ export function analyzeFactors(
     }
 
     // Volume spike: Volume > 1.5x MA20
-    if (data.Volume && !isNaN(volumeMA20[index])) {
+    if (data.Volume && volumeMA20[index] && !isNaN(volumeMA20[index]) && volumeMA20[index] > 0) {
       factors.volume_spike = data.Volume > volumeMA20[index] * 1.5;
     }
 
     // Break MA50
-    if (!isNaN(ma50[index]) && index > 0 && !isNaN(ma50[index - 1])) {
+    if (ma50[index] && !isNaN(ma50[index]) && index > 0 && ma50[index - 1] && !isNaN(ma50[index - 1])) {
       const previousBelowMA50 = stockData[index - 1].Close <= ma50[index - 1];
       const currentAboveMA50 = data.Close > ma50[index];
       factors.break_ma50 = previousBelowMA50 && currentAboveMA50;
     }
 
     // Break MA200
-    if (!isNaN(ma200[index]) && index > 0 && !isNaN(ma200[index - 1])) {
+    if (ma200[index] && !isNaN(ma200[index]) && index > 0 && ma200[index - 1] && !isNaN(ma200[index - 1])) {
       const previousBelowMA200 = stockData[index - 1].Close <= ma200[index - 1];
       const currentAboveMA200 = data.Close > ma200[index];
       factors.break_ma200 = previousBelowMA200 && currentAboveMA200;
     }
 
     // RSI over 60
-    if (!isNaN(rsi[index])) {
+    if (rsi[index] && !isNaN(rsi[index])) {
       factors.rsi_over_60 = rsi[index] > 60;
     }
 

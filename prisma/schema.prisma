@@ -190,3 +190,27 @@ model FactorTable {
   @@index([stockAnalysisId])
   @@map("factor_tables")
 }
+
+model EarningsData {
+  id              Int      @id @default(autoincrement())
+  symbol          String
+  company         String?
+  earningsDate    DateTime @map("earnings_date")
+  reportType      String   // "quarterly", "annual"
+  expectedEPS     Float?   @map("expected_eps")
+  actualEPS       Float?   @map("actual_eps")
+  surprise        Float?   // (actual - expected) / expected
+  revenue         Float?
+  expectedRevenue Float?   @map("expected_revenue")
+  
+  // AI-generated insights
+  aiSummary       String?  @map("ai_summary")
+  aiSentiment     String?  // "positive", "negative", "neutral"
+  aiKeyPoints     String?  // JSON array of key points
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  @@unique([symbol, earningsDate])
+  @@map("earnings_data")
+}

@@ -39,8 +39,71 @@ export async function GET(
       );
     }
 
-    // Get the stock analysis with factor tables from database
+    // Get the stock analysis first to have symbol info
     const stockAnalysis = await prisma.stockAnalysis.findUnique({
+      where: { id: analysisId }
+    });
+
+    if (!stockAnalysis) {
+      return NextResponse.json(
+        { error: "Stock analysis not found" },
+        { status: 404 }
+      );
+    }
+
+    // First check if daily_factor_data exists (for SNAP and other stocks with comprehensive factor analysis)
+    try {
+      const dailyFactorData = await prisma.$queryRaw`
+        SELECT 
+          ROW_NUMBER() OVER (ORDER BY date) as Tx,
+          date as Date,
+          volume_spike,
+          break_ma50,
+          break_ma200,
+          rsi_over_60,
+          market_up,
+          sector_up,
+          earnings_window,
+          news_positive,
+          short_covering,
+          macro_tailwind
+        FROM daily_factor_data 
+        WHERE stock_analysis_id = ${analysisId}
+        ORDER BY date
+      ` as Array<{
+        Tx: number;
+        Date: string;
+        volume_spike: number;
+        break_ma50: number;
+        break_ma200: number;
+        rsi_over_60: number;
+        market_up: number | null;
+        sector_up: number | null;
+        earnings_window: number | null;
+        news_positive: number | null;
+        short_covering: number | null;
+        macro_tailwind: number | null;
+      }>;
+
+      if (dailyFactorData && dailyFactorData.length > 0) {
+        console.log(`Retrieved daily factor data with ${dailyFactorData.length} records`);
+        return NextResponse.json({ 
+          success: true, 
+          data: dailyFactorData,
+          fromCache: true,
+          count: dailyFactorData.length,
+          analysisId: analysisId,
+          symbol: stockAnalysis.symbol,
+          dataSource: 'daily_factor_data',
+          message: `Retrieved ${dailyFactorData.length} records from daily_factor_data`
+        });
+      }
+    } catch (error) {
+      console.log("daily_factor_data not available, falling back to factor_tables");
+    }
+
+    // Get the stock analysis with factor tables from database (fallback)
+    const stockAnalysisWithFactors = await prisma.stockAnalysis.findUnique({
       where: { id: analysisId },
       include: {
         factorTables: {
@@ -59,15 +122,8 @@ export async function GET(
       }>;
     };
 
-    if (!stockAnalysis) {
-      return NextResponse.json(
-        { error: "Stock analysis not found" },
-        { status: 404 }
-      );
-    }
-
     // Check if factor table data exists
-    if (!stockAnalysis.factorTables || stockAnalysis.factorTables.length === 0) {
+    if (!stockAnalysisWithFactors.factorTables || stockAnalysisWithFactors.factorTables.length === 0) {
       return NextResponse.json(
         { 
           error: "No factor table data found for this analysis",
@@ -78,7 +134,7 @@ export async function GET(
     }
 
     // Parse and return cached data
-    const factorData = stockAnalysis.factorTables.map((ft) => ({
+    const factorData = stockAnalysisWithFactors.factorTables.map((ft) => ({
       Tx: ft.transactionId,
       Date: ft.date,
       ...JSON.parse(ft.factorData)
@@ -93,6 +149,7 @@ export async function GET(
       count: factorData.length,
       analysisId: stockAnalysis.id,
       symbol: stockAnalysis.symbol,
+      dataSource: 'factor_tables',
       message: `Retrieved ${factorData.length} transactions from database`
     });
 
