@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, TrendingUp, Calendar, DollarSign, BarChart3, Table, Brain, LineChart, Calculator, Loader2, Activity } from "lucide-react";
+import { ArrowLeft, TrendingUp, Calendar, DollarSign, BarChart3, Table, Brain, LineChart, Calculator, Loader2, Activity, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
 import { FACTOR_DESCRIPTIONS } from "@/lib/stock-factors";
@@ -79,6 +79,74 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
       // You could show a toast notification here if you have one
     } finally {
       setIsGeneratingFactors(false);
+    }
+  };
+
+  // State for AI analysis
+  const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
+  
+  // State for earnings data availability
+  const [earningsDataAvailable, setEarningsDataAvailable] = useState(false);
+  const [earningsLastUpdated, setEarningsLastUpdated] = useState<Date | undefined>(undefined);
+
+  // Check earnings data availability
+  useEffect(() => {
+    const checkEarningsData = async () => {
+      try {
+        const response = await fetch(`/api/earnings/${analysis.symbol}`);
+        const data = await response.json();
+        
+        if (data.success && data.data && data.data.length > 0) {
+          setEarningsDataAvailable(true);
+          // Get the most recent earnings date
+          const latestEarning = data.data[0];
+          setEarningsLastUpdated(new Date(latestEarning.updatedAt));
+        } else {
+          setEarningsDataAvailable(false);
+          setEarningsLastUpdated(undefined);
+        }
+      } catch (error) {
+        console.error('Error checking earnings data:', error);
+        setEarningsDataAvailable(false);
+        setEarningsLastUpdated(undefined);
+      }
+    };
+
+    checkEarningsData();
+  }, [analysis.symbol]);
+
+  // Handle AI analysis
+  const handleRetryAIAnalysis = async () => {
+    setIsAnalyzingAI(true);
+    
+    try {
+      const response = await fetch(`/api/stock-analyses/${analysis.id}/ai-analysis`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error('API Error Response:', errorData);
+        throw new Error(errorData.error || `Failed to start AI analysis (${response.status})`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('AI analysis initiated successfully');
+        // The real-time status hook will update the UI automatically
+      } else {
+        throw new Error('Failed to start AI analysis');
+      }
+    } catch (err) {
+      console.error('Error starting AI analysis:', err);
+      // You could show a toast notification here if you have one
+    } finally {
+      setIsAnalyzingAI(false);
     }
   };
 
@@ -219,8 +287,194 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
         </CardContent>
       </Card>
 
+      {/* AI Analysis Status Card - Prominent Position */}
+      <Card className="border-purple-200 bg-purple-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-purple-800">
+            <Brain className="h-5 w-5" />
+            AI Analysis
+          </CardTitle>
+          <CardDescription className="text-purple-600">
+            Get AI-powered insights and investment recommendations
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Status and Button */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {currentStatus === 'ai_completed' ? (
+                  <>
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <div>
+                      <div className="font-medium text-green-700">AI Analysis Completed</div>
+                      <div className="text-sm text-green-600">Insights available</div>
+                    </div>
+                  </>
+                ) : currentStatus === 'ai_processing' ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                    <div>
+                      <div className="font-medium text-purple-700">AI Analysis in Progress</div>
+                      <div className="text-sm text-purple-600">Generating insights...</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                    <div>
+                      <div className="font-medium text-gray-700">AI Analysis Not Started</div>
+                      <div className="text-sm text-gray-600">Click to generate insights</div>
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              {currentStatus !== 'ai_completed' && currentStatus !== 'ai_processing' && (
+                <Button 
+                  onClick={handleRetryAIAnalysis}
+                  disabled={isAnalyzingAI || !results}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  {isAnalyzingAI ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="mr-2 h-4 w-4" />
+                      Start AI Analysis
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+            
+            {/* AI Insights Preview */}
+            {analysis.aiInsights && currentStatus === 'ai_completed' && (
+              <div className="mt-4 p-4 bg-white border border-purple-200 rounded-md">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    {(() => {
+                      try {
+                        const insights = typeof analysis.aiInsights === 'string' 
+                          ? JSON.parse(analysis.aiInsights) 
+                          : analysis.aiInsights;
+                        
+                        return (
+                          <div className="space-y-4">
+                            {/* Summary */}
+                            <div>
+                              <h4 className="font-semibold text-purple-800 mb-2">Analysis Summary</h4>
+                              <div className="text-sm text-gray-700">
+                                {(() => {
+                                  // Split the summary into sentences and convert to bullet points
+                                  const sentences = insights.summary.split('. ').filter((s: string) => s.trim());
+                                  return sentences.length > 1 ? (
+                                    <ul className="space-y-1">
+                                      {sentences.map((sentence: string, index: number) => (
+                                        <li key={index} className="flex items-start gap-2">
+                                          <span className="text-purple-500 mt-1">•</span>
+                                          <span>{sentence.trim()}{sentence.trim() && !sentence.trim().endsWith('.') ? '.' : ''}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p>{insights.summary}</p>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                            
+                            {/* Key Points */}
+                            {insights.keyPoints && insights.keyPoints.length > 0 && (
+                              <div>
+                                <h4 className="font-semibold text-purple-800 mb-2">Key Findings</h4>
+                                <ul className="space-y-1">
+                                  {insights.keyPoints.map((point: string, index: number) => (
+                                    <li key={index} className="flex items-start gap-2">
+                                      <span className="text-purple-500 mt-1">•</span>
+                                      <span className="text-sm text-gray-700">{point}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {/* Metadata */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-purple-100">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-purple-600">{insights.dataPoints || 0}</div>
+                                <div className="text-sm text-gray-600">Data Points</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-green-600">{insights.factorsAnalyzed || 0}</div>
+                                <div className="text-sm text-gray-600">Factors Analyzed</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-blue-600 capitalize">{insights.confidence || 'medium'}</div>
+                                <div className="text-sm text-gray-600">Confidence</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-gray-600">
+                                  {insights.generatedAt ? new Date(insights.generatedAt).toLocaleDateString() : 'N/A'}
+                                </div>
+                                <div className="text-sm text-gray-600">Generated</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      } catch (error) {
+                        // Fallback for string data (backward compatibility)
+                        return (
+                          <div className="text-sm text-gray-700">
+                            <p>{analysis.aiInsights}</p>
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
+                  
+                  {/* Regenerate Button */}
+                  <div className="ml-4">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleRetryAIAnalysis}
+                      disabled={isAnalyzingAI || !results}
+                      className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                    >
+                      {isAnalyzingAI ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          Regenerating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="mr-2 h-3 w-3" />
+                          Regenerate
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {!results && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div className="text-sm text-yellow-800">
+                  Complete the stock analysis first to enable AI insights
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Current Stock Price */}
-      <CurrentStockPrice symbol={analysis.symbol} />
+      {analysis.symbol && <CurrentStockPrice symbol={analysis.symbol} />}
 
       {/* Factor Analysis Summary */}
       {results?.factorAnalysis && (
@@ -327,12 +581,9 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
               symbol={analysis.symbol}
               status={currentStatus}
               onRetryFactorGeneration={handleRetryFactorGeneration}
-              onRetryAIAnalysis={() => {
-                // Could trigger AI analysis here
-                console.log('Retry AI analysis clicked');
-              }}
+              onRetryAIAnalysis={handleRetryAIAnalysis}
               isGeneratingFactors={isGeneratingFactors || currentStatus === 'processing'}
-              isAnalyzingAI={currentStatus === 'ai_processing'}
+              isAnalyzingAI={isAnalyzingAI || currentStatus === 'ai_processing'}
               metrics={{
                 technicalIndicators: {
                   calculated: true, // This would be determined by checking if technical indicators exist
@@ -357,8 +608,8 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
                   insightsAvailable: !!analysis.aiInsights
                 },
                 earnings: {
-                  dataAvailable: false, // This would be checked from earnings data
-                  lastUpdated: undefined
+                  dataAvailable: earningsDataAvailable,
+                  lastUpdated: earningsLastUpdated
                 }
               }}
             />
@@ -514,19 +765,6 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
         </Tabs>
       )}
 
-      {analysis.aiInsights && (
-        <Card>
-          <CardHeader>
-            <CardTitle>AI Insights</CardTitle>
-            <CardDescription>AI-generated analysis and recommendations</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="prose max-w-none">
-              <p>{analysis.aiInsights}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+      </div>
   );
 }

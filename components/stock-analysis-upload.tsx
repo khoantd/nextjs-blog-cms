@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Loader2 } from "lucide-react";
-import { StockFactorTable } from "@/components/stock-factor-table";
 
 export function StockAnalysisUpload() {
   const router = useRouter();
@@ -18,7 +17,6 @@ export function StockAnalysisUpload() {
   const [csvContent, setCsvContent] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showFactorTable, setShowFactorTable] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -193,16 +191,6 @@ export function StockAnalysisUpload() {
         </CardContent>
       </Card>
 
-      {/* Factor Table Section */}
-      {csvContent && symbol && (
-        <div className="mt-8">
-          <StockFactorTable 
-            csvContent={csvContent} 
-            symbol={symbol}
-            minPctChange={parseFloat(minPctChange)}
-          />
-        </div>
-      )}
     </>
   );
 }

@@ -21,6 +21,23 @@ interface CurrentStockPriceProps {
   className?: string;
 }
 
+const formatCurrency = (price: number, currency: string) => {
+    if (currency === 'VND') {
+      // For Vietnamese Dong, format without decimal places and add ₫ symbol
+      return new Intl.NumberFormat('en-US', {
+        style: 'decimal',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(price) + ' ₫';
+    } else {
+      // For USD and other currencies, use standard format
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+      }).format(price);
+    }
+  };
+
 export function CurrentStockPrice({ symbol, className }: CurrentStockPriceProps) {
   const [stockData, setStockData] = useState<StockPriceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,7 +151,7 @@ export function CurrentStockPrice({ symbol, className }: CurrentStockPriceProps)
     return null;
   }
 
-  const isPositive = stockData.change >= 0;
+  const isPositive = (stockData.change ?? 0) >= 0;
   const TrendIcon = isPositive ? TrendingUp : TrendingDown;
 
   return (
@@ -156,7 +173,7 @@ export function CurrentStockPrice({ symbol, className }: CurrentStockPriceProps)
             <div className="space-y-1">
               <div className="flex items-baseline space-x-3">
                 <span className="text-3xl font-bold text-slate-900">
-                  ${stockData.price.toFixed(2)}
+                  {formatCurrency(stockData.price, stockData.currency)}
                 </span>
                 <span className="text-sm text-slate-500">
                   {stockData.currency}
@@ -166,7 +183,7 @@ export function CurrentStockPrice({ symbol, className }: CurrentStockPriceProps)
               <div className="flex items-center space-x-2">
                 <TrendIcon className={`h-4 w-4 ${isPositive ? 'text-green-600' : 'text-red-600'}`} />
                 <span className={`text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                  {isPositive ? '+' : ''}{stockData.change.toFixed(2)} ({stockData.changePercent.toFixed(2)}%)
+                  {isPositive ? '+' : ''}{stockData.change?.toFixed(2) ?? '0.00'} ({stockData.changePercent?.toFixed(2) ?? '0.00'}%)
                 </span>
               </div>
             </div>

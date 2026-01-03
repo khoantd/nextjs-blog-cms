@@ -5,11 +5,15 @@ import { CurrentStockPrice } from "@/components/current-stock-price";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, TrendingUp } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, TrendingUp, Globe } from "lucide-react";
+
+type Market = 'US' | 'VN';
 
 export default function StockPriceDemoPage() {
   const [symbol, setSymbol] = useState("AAPL");
   const [searchSymbol, setSearchSymbol] = useState("");
+  const [market, setMarket] = useState<Market>('US');
   const [key, setKey] = useState(0); // Force re-render when symbol changes
 
   const handleSearch = (e: React.FormEvent) => {
@@ -18,6 +22,25 @@ export default function StockPriceDemoPage() {
       setSymbol(searchSymbol.toUpperCase().trim());
       setKey(prev => prev + 1); // Force component re-render
     }
+  };
+
+  const handleMarketChange = (newMarket: Market) => {
+    setMarket(newMarket);
+    // Reset symbol to a default from the selected market
+    if (newMarket === 'US') {
+      setSymbol('AAPL');
+      setSearchSymbol('AAPL');
+    } else {
+      setSymbol('FPT');
+      setSearchSymbol('FPT');
+    }
+    setKey(prev => prev + 1);
+  };
+
+  const getPlaceholderText = () => {
+    return market === 'US' 
+      ? "Enter US stock symbol (e.g., AAPL, GOOGL, TSLA)"
+      : "Enter Vietnamese stock symbol (e.g., FPT, VNM, VIC)";
   };
 
   const popularStocks = [
@@ -29,6 +52,22 @@ export default function StockPriceDemoPage() {
     { symbol: "META", name: "Meta Platforms, Inc." },
     { symbol: "NVDA", name: "NVIDIA Corporation" },
     { symbol: "SNAP", name: "Snap Inc." },
+  ];
+
+  const vietnameseStocks = [
+    { symbol: "FPT", name: "FPT Corporation" },
+    { symbol: "VNM", name: "Vinamilk" },
+    { symbol: "VIC", name: "Vingroup" },
+    { symbol: "VRE", name: "Vincom Retail" },
+    { symbol: "VCB", name: "Vietcombank" },
+    { symbol: "VPB", name: "VPBank" },
+    { symbol: "GAS", name: "PetroVietnam Gas" },
+    { symbol: "HPG", name: "Hoa Phat Group" },
+    { symbol: "MSN", name: "Masan Group" },
+    { symbol: "MWG", name: "Mobile World Group" },
+    { symbol: "SAB", name: "Sabeco" },
+    { symbol: "SSI", name: "Saigon Securities" },
+    { symbol: "VHM", name: "Vinhomes" },
   ];
 
   return (
@@ -46,12 +85,31 @@ export default function StockPriceDemoPage() {
       {/* Search Form */}
       <Card>
         <CardHeader>
-          <CardTitle>Search Stock Symbol</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Search Stock Symbol
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Market Selection */}
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            <label className="text-sm font-medium">Market:</label>
+            <Select value={market} onValueChange={handleMarketChange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="US">🇺🇸 US Market</SelectItem>
+                <SelectItem value="VN">🇻🇳 Vietnamese Market</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {/* Search Input */}
           <form onSubmit={handleSearch} className="flex gap-2">
             <Input
-              placeholder="Enter stock symbol (e.g., AAPL, GOOGL, TSLA)"
+              placeholder={getPlaceholderText()}
               value={searchSymbol}
               onChange={(e) => setSearchSymbol(e.target.value)}
               className="flex-1"
@@ -67,14 +125,16 @@ export default function StockPriceDemoPage() {
       {/* Current Stock Price Display */}
       <CurrentStockPrice key={key} symbol={symbol} />
 
-      {/* Popular Stocks */}
+      {/* Popular Stocks - Based on Selected Market */}
       <Card>
         <CardHeader>
-          <CardTitle>Popular Stocks</CardTitle>
+          <CardTitle>
+            {market === 'US' ? '🇺🇸 Popular US Stocks' : '🇻🇳 Popular Vietnamese Stocks'}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-            {popularStocks.map((stock) => (
+            {(market === 'US' ? popularStocks : vietnameseStocks).map((stock) => (
               <Button
                 key={stock.symbol}
                 variant={stock.symbol === symbol ? "default" : "outline"}
