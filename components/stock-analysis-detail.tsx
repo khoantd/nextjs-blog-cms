@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, TrendingUp, Calendar, DollarSign, BarChart3, Table, Brain, LineChart, Calculator, Loader2, Activity, RefreshCw } from "lucide-react";
+import { ArrowLeft, TrendingUp, Calendar, DollarSign, BarChart3, Table, Brain, LineChart, Calculator, Loader2, Activity, RefreshCw, Star } from "lucide-react";
 import Link from "next/link";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
 import { FACTOR_DESCRIPTIONS } from "@/lib/stock-factors";
@@ -46,6 +46,10 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
   // State for factor generation
   const [isGeneratingFactors, setIsGeneratingFactors] = useState(false);
 
+  // State for favorite
+  const [isFavorite, setIsFavorite] = useState(analysis.favorite);
+  const [isUpdatingFavorite, setIsUpdatingFavorite] = useState(false);
+
   // Handle factor generation
   const handleRetryFactorGeneration = async () => {
     setIsGeneratingFactors(true);
@@ -80,6 +84,41 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
       // You could show a toast notification here if you have one
     } finally {
       setIsGeneratingFactors(false);
+    }
+  };
+
+  // Handle favorite toggle
+  const handleToggleFavorite = async () => {
+    setIsUpdatingFavorite(true);
+    
+    try {
+      const response = await fetch(`/api/stock-analyses/${analysis.id}/favorite`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error('API Error Response:', errorData);
+        throw new Error(errorData.error || `Failed to update favorite status (${response.status})`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setIsFavorite(result.data.favorite);
+        console.log(`Stock analysis ${result.data.favorite ? 'favorited' : 'unfavorited'} successfully`);
+      } else {
+        throw new Error('Failed to update favorite status');
+      }
+    } catch (err) {
+      console.error('Error updating favorite status:', err);
+      // You could show a toast notification here if you have one
+    } finally {
+      setIsUpdatingFavorite(false);
     }
   };
 
@@ -255,6 +294,19 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
                 </CardDescription>
               )}
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToggleFavorite}
+              disabled={isUpdatingFavorite}
+              className={isFavorite ? "text-yellow-600 border-yellow-300 hover:bg-yellow-50" : ""}
+            >
+              {isUpdatingFavorite ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Star className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
+              )}
+            </Button>
           </div>
         </CardHeader>
         <CardContent>

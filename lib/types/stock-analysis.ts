@@ -45,6 +45,7 @@ export interface StockAnalysis {
   priceChange: number | null;
   priceChangePercent: number | null;
   priceUpdatedAt: Date | string | null;
+  favorite: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
   minPctChange: number;

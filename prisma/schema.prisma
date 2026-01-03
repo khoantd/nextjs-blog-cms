@@ -106,6 +106,7 @@ model StockAnalysis {
   priceChange               Float?   @map("price_change") // Price change from previous close
   priceChangePercent        Float?   @map("price_change_percent") // Percentage change
   priceUpdatedAt            DateTime? @map("price_updated_at") // When price was last updated
+  favorite                  Boolean  @default(false) // Whether this analysis is marked as favorite
   createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt                 DateTime @updatedAt @map("updated_at")
   minPctChange              Float    @default(4.0) @map("min_pct_change") // Threshold percentage

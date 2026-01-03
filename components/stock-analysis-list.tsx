@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Upload, Loader2, AlertCircle, TrendingDown, DollarSign } from "lucide-react";
+import { TrendingUp, Upload, Loader2, AlertCircle, TrendingDown, DollarSign, Star } from "lucide-react";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
 import { formatPrice } from "@/lib/currency-utils";
 
@@ -23,7 +23,8 @@ const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((re
 });
 
 export function StockAnalysisList() {
-  const { data, error, isLoading } = useSWR<ApiResponse<{ stockAnalyses: StockAnalysis[] }>>(
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const { data, error, isLoading, mutate } = useSWR<ApiResponse<{ stockAnalyses: StockAnalysis[] }>>(
     "/api/stock-analyses",
     fetcher,
     {
@@ -32,6 +33,55 @@ export function StockAnalysisList() {
       errorRetryInterval: 2000,
     }
   );
+
+  // Handle favorite toggle
+  const handleToggleFavorite = async (e: React.MouseEvent, analysisId: number, currentFavorite: boolean) => {
+    e.preventDefault(); // Prevent navigation to detail page
+    e.stopPropagation();
+    
+    try {
+      const response = await fetch(`/api/stock-analyses/${analysisId}/favorite`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error('API Error Response:', errorData);
+        throw new Error(errorData.error || `Failed to update favorite status (${response.status})`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Update the local cache by mutating the data
+        mutate((currentData) => {
+          if (!currentData?.data?.stockAnalyses) return currentData;
+          
+          return {
+            ...currentData,
+            data: {
+              stockAnalyses: currentData.data.stockAnalyses.map(analysis =>
+                analysis.id === analysisId
+                  ? { ...analysis, favorite: result.data.favorite }
+                  : analysis
+              )
+            }
+          };
+        }, false);
+        
+        console.log(`Stock analysis ${result.data.favorite ? 'favorited' : 'unfavorited'} successfully`);
+      } else {
+        throw new Error('Failed to update favorite status');
+      }
+    } catch (err) {
+      console.error('Error updating favorite status:', err);
+      // You could show a toast notification here if you have one
+    }
+  };
 
   const getStatusColor = (status: string | null) => {
     switch (status) {
@@ -94,6 +144,18 @@ export function StockAnalysisList() {
 
   const analyses = data?.data?.stockAnalyses || [];
 
+  // Filter and sort analyses
+  const filteredAndSortedAnalyses = analyses
+    .filter(analysis => !showFavoritesOnly || analysis.favorite)
+    .sort((a, b) => {
+      // Sort by favorite status first (favorites first), then by creation date
+      if (a.favorite && !b.favorite) return -1;
+      if (!a.favorite && b.favorite) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+  const favoriteCount = analyses.filter(analysis => analysis.favorite).length;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -103,15 +165,37 @@ export function StockAnalysisList() {
             Analyze stock price data to identify significant daily changes
           </p>
         </div>
-        <Link href="/stock-analysis/create">
-          <Button>
-            <Upload className="mr-2 h-4 w-4" />
-            New Analysis
+        <div className="flex items-center gap-3">
+          <Button
+            variant={showFavoritesOnly ? "default" : "outline"}
+            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            className="flex items-center gap-2"
+          >
+            <Star className={`h-4 w-4 ${showFavoritesOnly ? "fill-current" : ""}`} />
+            {showFavoritesOnly ? "Show All" : `Favorites (${favoriteCount})`}
           </Button>
-        </Link>
+          <Link href="/stock-analysis/create">
+            <Button>
+              <Upload className="mr-2 h-4 w-4" />
+              New Analysis
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {analyses.length === 0 ? (
+      {showFavoritesOnly && favoriteCount === 0 && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-12">
+            <Star className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground mb-4">No favorite stock analyses yet</p>
+            <p className="text-sm text-muted-foreground">
+              Click the star icon on any analysis to add it to your favorites
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {filteredAndSortedAnalyses.length === 0 && !showFavoritesOnly ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12">
             <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
@@ -126,22 +210,32 @@ export function StockAnalysisList() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {analyses.map((analysis) => {
+          {filteredAndSortedAnalyses.map((analysis) => {
             const results = parseAnalysisResults(analysis.analysisResults);
             return (
               <Link key={analysis.id} href={`/stock-analysis/${analysis.id}`}>
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                   <CardHeader>
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1">
                         <CardTitle className="text-2xl">{analysis.symbol}</CardTitle>
                         {analysis.name && (
                           <CardDescription>{analysis.name}</CardDescription>
                         )}
                       </div>
-                      <Badge className={getStatusColor(analysis.status)}>
-                        {analysis.status || "draft"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className={getStatusColor(analysis.status)}>
+                          {analysis.status || "draft"}
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => handleToggleFavorite(e, analysis.id, analysis.favorite)}
+                          className={`shrink-0 ${analysis.favorite ? "text-yellow-600 border-yellow-300 hover:bg-yellow-50" : ""}`}
+                        >
+                          <Star className={`h-4 w-4 ${analysis.favorite ? "fill-current" : ""}`} />
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
