@@ -5,14 +5,15 @@ const prisma = new PrismaClient();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { symbol: string } }
+  { params }: { params: Promise<{ symbol: string }> }
 ) {
   try {
-    const symbol = params.symbol.toUpperCase();
+    const { symbol } = await params;
+    const normalizedSymbol = symbol.toUpperCase();
 
     const earningsHistory = await prisma.earningsData.findMany({
       where: {
-        symbol: symbol,
+        symbol: normalizedSymbol,
       },
       orderBy: {
         earningsDate: 'desc',

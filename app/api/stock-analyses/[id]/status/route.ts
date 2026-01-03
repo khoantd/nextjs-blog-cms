@@ -5,9 +5,10 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getCurrentUser();
 
     if (!user) {
@@ -25,7 +26,7 @@ export async function GET(
       );
     }
 
-    const analysisId = parseInt(params.id);
+    const analysisId = parseInt(id);
     if (isNaN(analysisId)) {
       return NextResponse.json(
         { error: "Invalid analysis ID" },

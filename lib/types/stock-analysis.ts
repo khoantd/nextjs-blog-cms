@@ -51,5 +51,6 @@ export interface CreateStockAnalysisInput {
   name?: string;
   csvContent: string;
   minPctChange?: number;
+  market?: string;
   overwrite?: boolean;
 }

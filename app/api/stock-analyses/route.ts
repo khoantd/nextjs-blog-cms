@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     const body: CreateStockAnalysisInput = await request.json();
-    const { symbol, name, csvContent, minPctChange = 4.0, overwrite = false } = body;
+    const { symbol, name, csvContent, minPctChange = 4.0, market = "us", overwrite = false } = body;
 
     if (!symbol || !csvContent) {
       return NextResponse.json(
@@ -80,8 +80,8 @@ export async function POST(request: Request) {
     }
 
     // Perform analysis
-    console.log('[Stock Analysis] Analyzing data for symbol:', symbol);
-    const analysisResult = analyzeStockDataFromCSV(csvContent, symbol, minPctChange);
+    console.log('[Stock Analysis] Analyzing data for symbol:', symbol, 'market:', market);
+    const analysisResult = analyzeStockDataFromCSV(csvContent, symbol, minPctChange, market);
     console.log('[Stock Analysis] Analysis complete, transactions found:', analysisResult.transactionsFound);
 
     // Save CSV file for future factor analysis

@@ -5,7 +5,7 @@ import { canCreateStockAnalysis } from "@/lib/auth";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -16,7 +16,8 @@ export async function POST(
       );
     }
 
-    const stockAnalysisId = parseInt(params.id);
+    const { id } = await params;
+    const stockAnalysisId = parseInt(id);
     
     // Get the stock analysis
     const stockAnalysis = await prisma.stockAnalysis.findUnique({
@@ -141,12 +142,15 @@ export async function POST(
     });
 
   } catch (error) {
-    console.error(`[Regenerate Factors] Error regenerating factors for analysis ${params.id}:`, error);
+    const { id } = await params;
+    const stockAnalysisId = parseInt(id);
+    
+    console.error(`[Regenerate Factors] Error regenerating factors for analysis ${id}:`, error);
     
     // Update status to factor_failed
     try {
       await prisma.stockAnalysis.update({
-        where: { id: parseInt(params.id) },
+        where: { id: stockAnalysisId },
         data: { status: 'factor_failed' }
       });
     } catch (updateError) {

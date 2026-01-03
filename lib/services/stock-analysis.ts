@@ -28,6 +28,7 @@ function parseCSV(csvContent: string): StockData[] {
     else if (lower === 'low') headerMap[h] = 'Low';
     else if (lower === 'close') headerMap[h] = 'Close';
     else if (lower === 'volume') headerMap[h] = 'Volume';
+    else if (lower === 'ticket') headerMap[h] = 'Ticket'; // Handle Vietnamese format
     else headerMap[h] = h;
   });
 
@@ -99,7 +100,8 @@ function calculatePctChange(arr: number[]): number[] {
 export function analyzeStockDataFromCSV(
   csvContent: string,
   symbol: string,
-  minPctChange: number = 4.0
+  minPctChange: number = 4.0,
+  market: string = "us"
 ): StockAnalysisResult {
   // Load data
   const df = parseCSV(csvContent);
@@ -199,7 +201,7 @@ export function analyzeStockDataFromCSV(
  * Extract symbol from CSV filename
  */
 export function extractSymbolFromFilename(filename: string): string {
-  // Extract symbol from filename like "SNAP_daily.csv" -> "SNAP"
-  const match = filename.match(/^([A-Z]+)_/);
+  // Extract symbol from filename like "SNAP_daily.csv" -> "SNAP" or "TCB-20260103_2025.csv" -> "TCB"
+  const match = filename.match(/^([A-Z]+)[_-]/);
   return match ? match[1] : filename.replace(/\.csv$/i, '').toUpperCase();
 }
