@@ -1,9 +1,9 @@
 # Cursor Rules for Next.js Blog CMS with AI Workflows
 
 ## Project Overview
-This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase, and LiteLLM. The application features automated blog post processing including grammar fixes, table of contents generation, and publishing workflows. **Now includes Google OAuth authentication with role-based access control (RBAC)**.
+This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase, and LiteLLM. The application features automated blog post processing including grammar fixes, table of contents generation, and publishing workflows. **Now includes Google OAuth authentication with role-based access control (RBAC)** and **Stock Analysis with Chart Visualization**.
 
-**Architecture Note**: This codebase follows enterprise-grade patterns with service layers, comprehensive error handling, strict type safety, and secure authentication.
+**Architecture Note**: This codebase follows enterprise-grade patterns with service layers, comprehensive error handling, strict type safety, secure authentication, and interactive data visualization.
 
 ## Tech Stack
 - **Framework**: Next.js 14 with App Router
@@ -17,6 +17,8 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - **Icons**: Lucide React
 - **Validation**: Zod for schema validation
 - **Error Handling**: Custom error classes with centralized logging
+- **Data Visualization**: Recharts for interactive charts and graphs
+- **AI Proxy**: LiteLLM for unified AI API access across multiple providers
 
 ## Code Style Guidelines
 
@@ -32,6 +34,8 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - **Authentication**: `/lib/auth.ts` (NextAuth config & RBAC)
 - **Auth utilities**: `/lib/auth-utils.ts` (server-side helpers)
 - **Auth types**: `/types/next-auth.d.ts` (TypeScript extensions)
+- **Stock Analysis**: `/components/stock-chart.tsx` (chart visualization component)
+- **Stock Details**: `/components/stock-analysis-detail.tsx` (analysis with chart tab)
 
 ### TypeScript (Enhanced)
 - Strict mode is enabled - all types must be properly defined
@@ -53,6 +57,8 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - Use proper TypeScript interfaces for props
 - **Auth**: Use `useSession()` from `next-auth/react` for client-side auth
 - **Permissions**: Use permission helpers from `/lib/auth.ts` (canEditPost, canDeletePost, etc.)
+- **Charts**: Use Recharts library for data visualization components
+- **Responsive Design**: Use ResponsiveContainer from Recharts for mobile-friendly charts
 
 ### Database (Enhanced)
 - Use Prisma client from `/lib/prisma.ts`
@@ -78,7 +84,7 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - Validate all API route inputs and server action parameters
 - Never trust external input - always validate
 
-### Authentication & Authorization (NEW)
+### Authentication & Authorization (Enhanced)
 - **Client-side**: Use `useSession()` hook to access user session and role
 - **Server-side**: Use helpers from `/lib/auth-utils.ts`:
   - `getCurrentUser()` - Get current user (returns null if not authenticated)
@@ -89,8 +95,9 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
   - `canManageWorkflows(role)`, `canManageUsers(role)`
   - `hasPermission(userRole, requiredRole)` - General permission check
 - **Roles**: Three hierarchical roles: viewer (1) < editor (2) < admin (3)
-- **Route Protection**: Middleware in `/middleware.ts` protects all routes except auth pages
-- **Environment**: OAuth credentials in `.env.local` (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUTH_SECRET)
+- **Route Protection**: Middleware in `/middleware.ts` protects all routes except auth pages and Inngest API
+- **Critical Middleware Fix**: Exclude `/api/inngest` from NextAuth middleware to allow Inngest CLI syncing
+- **Environment**: OAuth credentials in `.env.local` (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUTH_SECRET, OPENAI_API_KEY)
 
 ### Styling
 - Use Tailwind CSS classes
@@ -105,6 +112,9 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - Handle workflow states and approvals properly
 - Apply proper error handling for external service calls
 - Use ExternalServiceError for AI service failures
+- **LiteLLM Integration**: Use LiteLLM proxy for unified AI API access across providers (OpenAI, Anthropic, etc.)
+- **LiteLLM Configuration**: Set LITELLM_API_KEY and LITELLM_BASE_URL in environment variables
+- **Model Selection**: Use LiteLLM model format (e.g., "openai/gpt-4", "anthropic/claude-3")
 - **CRITICAL Workflow Structure**: When creating workflows for the automation editor:
   - **DO NOT** include edge to `$sink` - the Inngest workflow kit auto-generates it
   - **DO** include explicit `id` fields for all edges (e.g., `{"id":"edge-source-1","from":"$source","to":"1"}`)
@@ -113,6 +123,7 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
   - **DO NOT** include both `steps` and `actions` arrays - only use `actions` to avoid conflicts
   - Use `formatWorkflowAsJson()` from `/lib/workflow-templates.ts` for template-based workflows
   - Reference "Blog Post Review Workflow" in seed data as the working structure example
+- **Inngest CLI Sync**: Ensure `/api/inngest` endpoint is accessible for development syncing
 
 ## Development Guidelines
 
@@ -120,6 +131,8 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - Use `.env.local` for local development
 - Reference `.env.example` for required variables
 - **Required for Auth**: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUTH_SECRET, NEXTAUTH_URL
+- **Required for AI**: OPENAI_API_KEY (prevents route initialization errors)
+- **Required for LiteLLM**: LITELLM_API_KEY, LITELLM_BASE_URL
 - Include Supabase URL/keys and AI API keys
 - Never commit `.env.local` - use `.env.example` as template
 
@@ -186,6 +199,21 @@ export const ComponentName = ({ prop }: ComponentProps) => {
   
   return <div>{/* JSX with shadcn/ui components */}</div>;
 };
+
+// Chart Component Pattern
+export const ChartComponent = ({ data }: ChartProps) => {
+  return (
+    <ResponsiveContainer width="100%" height={400}>
+      <LineChart data={data}>
+        <XAxis dataKey="date" />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        <Line type="monotone" dataKey="value" stroke="#8884d8" />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+};
 ```
 
 ### Data Fetching (Enhanced)
@@ -218,6 +246,17 @@ const handleError = (error: Error) => {
   logError(error, { context: 'component-operation' });
   // Show user-friendly error message
 };
+
+// LiteLLM Error Handling
+try {
+  const response = await litellm.completion({
+    model: "openai/gpt-4",
+    messages: [{ role: "user", content: prompt }]
+  });
+} catch (error) {
+  logError(error as Error, { context: 'litellm-api-call', model: "openai/gpt-4" });
+  throw new ExternalServiceError('AI service unavailable', error as Error);
+}
 ```
 
 ### Authentication Patterns (NEW)
@@ -265,12 +304,15 @@ export async function deletePost(id: string) {
 - **`/lib/auth.ts`** - NextAuth configuration and RBAC permission helpers
 - **`/lib/auth-utils.ts`** - Server-side authentication utilities
 - **`/types/next-auth.d.ts`** - NextAuth TypeScript type extensions
-- **`/middleware.ts`** - Route protection middleware
+- **`/middleware.ts`** - Route protection middleware with Inngest exclusion
 - `/components/unified-automation-manager.tsx` - Main workflow editor
 - `/components/user-profile.tsx` - User profile sidebar component
 - `/lib/workflow-templates.ts` - AI workflow definitions
 - `/lib/inngest/` - Inngest client and workflow definitions
+- **`/lib/litellm.ts`** - LiteLLM configuration and utilities (if exists)
 - `/prisma/schema.prisma` - Database schema (includes User, Account, Session models)
+- **`/components/stock-chart.tsx`** - Stock price visualization with Recharts
+- **`/components/stock-analysis-detail.tsx`** - Stock analysis with integrated chart tab
 - `CODE_REVIEW_SUMMARY.md` - Documentation of applied best practices
 - **`AUTHENTICATION_SETUP.md`** - Complete authentication setup guide
 - **`QUICK_START_AUTH.md`** - 5-minute quick start for authentication
@@ -319,9 +361,10 @@ export async function deletePost(id: string) {
 
 ### Protected Routes
 - All routes protected by default via `/middleware.ts`
-- Exceptions: `/api/auth/*`, `/auth/signin`, `/auth/error`
+- Exceptions: `/api/auth/*`, `/auth/signin`, `/auth/error`, `/api/inngest`
 - Unauthenticated users redirected to sign-in page
 - Insufficient permissions redirected to `/unauthorized`
+- **Inngest API**: `/api/inngest` excluded from middleware to allow CLI syncing
 
 ### Google OAuth Setup
 1. Create OAuth credentials in Google Cloud Console
@@ -340,3 +383,6 @@ export async function deletePost(id: string) {
   - Set NEXTAUTH_URL to production domain (e.g., https://yourdomain.com)
   - Add production redirect URI to Google Cloud Console
   - Configure `next.config.mjs` images.remotePatterns for Google profile images
+- **Critical**: Ensure OPENAI_API_KEY is set in production to prevent route initialization errors
+- **LiteLLM Deployment**: Configure LITELLM_API_KEY and LITELLM_BASE_URL for production AI services
+- **Inngest CLI**: Verify `/api/inngest` endpoint is accessible for development syncing

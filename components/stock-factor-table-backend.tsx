@@ -191,7 +191,7 @@ export function StockFactorTableBackend({
         }
       }, 800);
 
-      const response = await fetch(`/api/stock-analyses/${analysisId}/factor-table`, {
+      const response = await fetch(`/api/stock-analyses/${analysisId}/regenerate-factors`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

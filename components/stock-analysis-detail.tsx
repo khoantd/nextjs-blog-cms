@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,46 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
 
   // Use real-time status if available, otherwise fall back to static status
   const currentStatus = realTimeStatus || analysis.status;
+
+  // State for factor generation
+  const [isGeneratingFactors, setIsGeneratingFactors] = useState(false);
+
+  // Handle factor generation
+  const handleRetryFactorGeneration = async () => {
+    setIsGeneratingFactors(true);
+    
+    try {
+      const response = await fetch(`/api/stock-analyses/${analysis.id}/regenerate-factors`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error('API Error Response:', errorData);
+        throw new Error(errorData.error || `Failed to regenerate factors (${response.status})`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('Factor regeneration initiated successfully');
+        // Navigate to factors tab to show the results
+        const factorsTab = document.querySelector('[value="factors"]') as HTMLElement;
+        factorsTab?.click();
+      } else {
+        throw new Error('Failed to regenerate factors');
+      }
+    } catch (err) {
+      console.error('Error regenerating factors:', err);
+      // You could show a toast notification here if you have one
+    } finally {
+      setIsGeneratingFactors(false);
+    }
+  };
 
   const getStatusColor = (status: string | null) => {
     switch (status) {
@@ -281,16 +322,12 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
               analysisId={analysis.id}
               symbol={analysis.symbol}
               status={currentStatus}
-              onRetryFactorGeneration={() => {
-                // Navigate to factors tab and trigger generation
-                const factorsTab = document.querySelector('[value="factors"]') as HTMLElement;
-                factorsTab?.click();
-              }}
+              onRetryFactorGeneration={handleRetryFactorGeneration}
               onRetryAIAnalysis={() => {
                 // Could trigger AI analysis here
                 console.log('Retry AI analysis clicked');
               }}
-              isGeneratingFactors={currentStatus === 'processing'}
+              isGeneratingFactors={isGeneratingFactors || currentStatus === 'processing'}
               isAnalyzingAI={currentStatus === 'ai_processing'}
               metrics={{
                 technicalIndicators: {
