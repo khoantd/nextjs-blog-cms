@@ -39,6 +39,12 @@ export function StockAnalysisList() {
     e.preventDefault(); // Prevent navigation to detail page
     e.stopPropagation();
     
+    // Validate analysisId
+    if (!analysisId || isNaN(analysisId) || analysisId <= 0) {
+      console.error('Invalid analysis ID:', analysisId);
+      throw new Error('Invalid analysis ID');
+    }
+    
     try {
       const response = await fetch(`/api/stock-analyses/${analysisId}/favorite`, {
         method: "PUT",
@@ -49,7 +55,17 @@ export function StockAnalysisList() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        let errorData;
+        try {
+          const responseText = await response.text();
+          if (responseText) {
+            errorData = JSON.parse(responseText);
+          } else {
+            errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+          }
+        } catch (parseError) {
+          errorData = { error: `HTTP ${response.status}: ${response.statusText || 'Unknown error'}` };
+        }
         console.error('API Error Response:', errorData);
         throw new Error(errorData.error || `Failed to update favorite status (${response.status})`);
       }
@@ -230,7 +246,15 @@ export function StockAnalysisList() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={(e) => handleToggleFavorite(e, analysis.id, analysis.favorite)}
+                          onClick={async (e) => {
+                            console.log('handleToggleFavorite called with analysis.id:', analysis.id);
+                            try {
+                              await handleToggleFavorite(e, analysis.id, analysis.favorite);
+                            } catch (error) {
+                              console.error('Error toggling favorite:', error);
+                              // You could show a toast notification here
+                            }
+                          }}
                           className={`shrink-0 ${analysis.favorite ? "text-yellow-600 border-yellow-300 hover:bg-yellow-50" : ""}`}
                         >
                           <Star className={`h-4 w-4 ${analysis.favorite ? "fill-current" : ""}`} />
@@ -262,6 +286,44 @@ export function StockAnalysisList() {
                           </div>
                         </div>
                       </div>
+
+                      {/* AI Price Recommendations */}
+                      {(analysis.buyPrice || analysis.sellPrice) && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {analysis.buyPrice && (
+                            <div className="flex flex-col items-center p-2 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center space-x-1 text-green-600 mb-1">
+                                <TrendingUp className="h-3 w-3" />
+                                <span className="text-xs font-medium">Buy Target</span>
+                              </div>
+                              <div className="font-semibold text-green-700">
+                                {formatPrice(analysis.buyPrice, analysis.symbol)}
+                              </div>
+                              {analysis.latestPrice && (
+                                <div className="text-xs text-green-600 mt-1">
+                                  {((analysis.buyPrice - analysis.latestPrice) / analysis.latestPrice * 100).toFixed(1)}%
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {analysis.sellPrice && (
+                            <div className="flex flex-col items-center p-2 bg-red-50 border border-red-200 rounded-lg">
+                              <div className="flex items-center space-x-1 text-red-600 mb-1">
+                                <TrendingDown className="h-3 w-3" />
+                                <span className="text-xs font-medium">Sell Target</span>
+                              </div>
+                              <div className="font-semibold text-red-700">
+                                {formatPrice(analysis.sellPrice, analysis.symbol)}
+                              </div>
+                              {analysis.latestPrice && (
+                                <div className="text-xs text-red-600 mt-1">
+                                  {((analysis.sellPrice - analysis.latestPrice) / analysis.latestPrice * 100).toFixed(1)}%
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Analysis Results */}
                       {results && (

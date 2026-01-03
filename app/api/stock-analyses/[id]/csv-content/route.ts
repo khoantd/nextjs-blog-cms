@@ -4,10 +4,10 @@ import { join } from 'path';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // In a real implementation, you would fetch the stock analysis from the database
     // to get the CSV file path. For now, we'll assume a standard path structure.

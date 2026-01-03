@@ -49,6 +49,10 @@ export interface StockAnalysis {
   createdAt: Date | string;
   updatedAt: Date | string;
   minPctChange: number;
+  // AI-powered price recommendations
+  buyPrice: number | null;
+  sellPrice: number | null;
+  priceRecommendations: string | null; // JSON stringified price recommendations
 }
 
 export interface CreateStockAnalysisInput {

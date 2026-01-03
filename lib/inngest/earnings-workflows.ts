@@ -148,6 +148,8 @@ export const earningsAnalysisWorkflow = inngest.createFunction(
 export const scheduledEarningsWorkflow = inngest.createFunction(
   { 
     id: 'scheduled-earnings-workflow',
+  },
+  { 
     cron: '0 8 * * 1-5', // Run at 8 AM on weekdays
   },
   async ({ step }) => {

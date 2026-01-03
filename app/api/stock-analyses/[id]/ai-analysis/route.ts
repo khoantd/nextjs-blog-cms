@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { generatePriceRecommendations, StockAnalysisData } from '@/lib/ai-price-recommendations';
 
 const prisma = new PrismaClient();
 
@@ -49,7 +50,30 @@ export async function POST(
       // Generate AI insights based on the analysis data
       const aiInsights = await generateAIInsights(stockAnalysis.symbol, analysisResults);
 
-      // Update the analysis with AI insights and mark as completed
+      // Generate AI price recommendations
+      let priceRecommendations = null;
+      let buyPrice = null;
+      let sellPrice = null;
+      
+      try {
+        const stockData: StockAnalysisData = {
+          symbol: stockAnalysis.symbol,
+          transactions: analysisResults.transactions,
+          factorAnalysis: analysisResults.factorAnalysis,
+          totalDays: analysisResults.totalDays,
+          minPctChange: analysisResults.minPctChange,
+          currentPrice: stockAnalysis.latestPrice || undefined
+        };
+        
+        priceRecommendations = await generatePriceRecommendations(stockData);
+        buyPrice = priceRecommendations.buyPrice;
+        sellPrice = priceRecommendations.sellPrice;
+      } catch (priceError) {
+        console.error('Price recommendations generation failed:', priceError);
+        // Continue without price recommendations - don't fail the entire AI analysis
+      }
+
+      // Update the analysis with AI insights, price recommendations, and mark as completed
       const updatedAnalysis = await prisma.stockAnalysis.update({
         where: { id: analysisId },
         data: {
@@ -61,6 +85,14 @@ export async function POST(
             factorsAnalyzed: aiInsights.factorsAnalyzed,
             generatedAt: new Date().toISOString()
           }),
+          buyPrice: buyPrice,
+          sellPrice: sellPrice,
+          priceRecommendations: priceRecommendations ? JSON.stringify({
+            ...priceRecommendations,
+            generatedAt: new Date().toISOString(),
+            analysisId: analysisId,
+            symbol: stockAnalysis.symbol
+          }) : null,
           status: 'ai_completed'
         }
       });

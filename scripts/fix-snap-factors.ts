@@ -50,16 +50,16 @@ async function fixSnapFactors() {
     
     // Clear existing factor data for this analysis
     console.log('🧹 Clearing existing factor data...');
-    await prisma.daily_factor_data.deleteMany({
-      where: { stock_analysis_id: snapAnalysis.id }
+    await prisma.dailyFactorData.deleteMany({
+      where: { stockAnalysisId: snapAnalysis.id }
     });
     
-    await prisma.daily_scores.deleteMany({
-      where: { stock_analysis_id: snapAnalysis.id }
+    await prisma.dailyScore.deleteMany({
+      where: { stockAnalysisId: snapAnalysis.id }
     });
     
-    await prisma.factor_tables.deleteMany({
-      where: { stock_analysis_id: snapAnalysis.id }
+    await prisma.factorTable.deleteMany({
+      where: { stockAnalysisId: snapAnalysis.id }
     });
     
     // Regenerate factor analysis with corrected logic

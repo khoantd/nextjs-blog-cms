@@ -16,6 +16,7 @@ import { DailyScoringTab } from "@/components/daily-scoring-tab";
 import { EarningsTab } from "@/components/earnings-tab";
 import { DataQualityDashboard } from "@/components/data-quality-dashboard";
 import { CurrentStockPrice } from "@/components/current-stock-price";
+import { PriceRecommendations } from "@/components/price-recommendations";
 import { useRealTimeStatus } from "@/lib/hooks/use-real-time-status";
 
 interface StockAnalysisDetailProps {
@@ -91,8 +92,28 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
   const handleToggleFavorite = async () => {
     setIsUpdatingFavorite(true);
     
+    // Enhanced validation for analysis.id
+    console.log('handleToggleFavorite called with analysis.id:', analysis.id, 'type:', typeof analysis.id);
+    
+    if (!analysis.id) {
+      console.error('Invalid analysis ID - ID is missing:', analysis.id);
+      setIsUpdatingFavorite(false);
+      return;
+    }
+    
+    // Convert to number and validate
+    const numericId = typeof analysis.id === 'string' ? parseInt(analysis.id, 10) : analysis.id;
+    
+    if (isNaN(numericId) || numericId <= 0 || !Number.isInteger(numericId)) {
+      console.error('Invalid analysis ID - not a valid positive integer:', analysis.id, 'converted to:', numericId);
+      setIsUpdatingFavorite(false);
+      return;
+    }
+    
+    console.log('Validated analysis ID:', numericId);
+    
     try {
-      const response = await fetch(`/api/stock-analyses/${analysis.id}/favorite`, {
+      const response = await fetch(`/api/stock-analyses/${numericId}/favorite`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -101,7 +122,17 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        let errorData;
+        try {
+          const responseText = await response.text();
+          if (responseText) {
+            errorData = JSON.parse(responseText);
+          } else {
+            errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+          }
+        } catch (parseError) {
+          errorData = { error: `HTTP ${response.status}: ${response.statusText || 'Unknown error'}` };
+        }
         console.error('API Error Response:', errorData);
         throw new Error(errorData.error || `Failed to update favorite status (${response.status})`);
       }
@@ -529,6 +560,14 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
 
       {/* Current Stock Price */}
       {analysis.symbol && <CurrentStockPrice symbol={analysis.symbol} />}
+
+      {/* AI Price Recommendations */}
+      <PriceRecommendations 
+        analysisId={analysis.id}
+        symbol={analysis.symbol}
+        currentPrice={analysis.latestPrice || undefined}
+        initialRecommendations={analysis.priceRecommendations ? JSON.parse(analysis.priceRecommendations) : null}
+      />
 
       {/* Factor Analysis Summary */}
       {results?.factorAnalysis && (

@@ -128,7 +128,11 @@ async function generateDailyScoring() {
         });
       }
 
-      factorData = factorDataToSave;
+      // Fetch the saved factor data from database
+      factorData = await prisma.dailyFactorData.findMany({
+        where: { stockAnalysisId: stockAnalysis.id },
+        orderBy: { date: 'asc' }
+      });
       console.log(`✅ Generated and saved ${factorData.length} days of factor data`);
     } else {
       console.log(`📋 Using existing factor data (${existingFactorData.length} days)`);

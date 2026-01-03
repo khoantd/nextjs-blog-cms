@@ -110,6 +110,11 @@ model StockAnalysis {
   createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt                 DateTime @updatedAt @map("updated_at")
   minPctChange              Float    @default(4.0) @map("min_pct_change") // Threshold percentage
+  
+  // AI-powered price recommendations
+  buyPrice                   Float?   @map("buy_price") // AI-recommended buy price
+  sellPrice                  Float?   @map("sell_price") // AI-recommended sell price
+  priceRecommendations       String?  @map("price_recommendations") // JSON with detailed price analysis
 
   // Relations
   dailyFactorData           DailyFactorData[]

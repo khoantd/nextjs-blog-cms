@@ -9,7 +9,7 @@ import { canCreateStockAnalysis } from "@/lib/auth";
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -28,8 +28,12 @@ export async function PUT(
       );
     }
 
-    const analysisId = parseInt(params.id);
-    if (isNaN(analysisId)) {
+    const { id } = await params;
+    const analysisId = parseInt(id);
+    console.log('API route called with params.id:', id, 'type:', typeof id, 'parsed to:', analysisId);
+    
+    if (isNaN(analysisId) || analysisId <= 0 || !Number.isInteger(analysisId)) {
+      console.error('Invalid analysis ID in API route:', id, 'parsed to:', analysisId);
       return NextResponse.json(
         { error: "Invalid analysis ID" },
         { status: 400 }
@@ -80,7 +84,7 @@ export async function PUT(
  */
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -99,8 +103,10 @@ export async function POST(
       );
     }
 
-    const analysisId = parseInt(params.id);
-    if (isNaN(analysisId)) {
+    const { id } = await params;
+    const analysisId = parseInt(id);
+    if (isNaN(analysisId) || analysisId <= 0 || !Number.isInteger(analysisId)) {
+      console.error('Invalid analysis ID in POST route:', id, 'parsed to:', analysisId);
       return NextResponse.json(
         { error: "Invalid analysis ID" },
         { status: 400 }
@@ -137,7 +143,7 @@ export async function POST(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -156,8 +162,10 @@ export async function DELETE(
       );
     }
 
-    const analysisId = parseInt(params.id);
-    if (isNaN(analysisId)) {
+    const { id } = await params;
+    const analysisId = parseInt(id);
+    if (isNaN(analysisId) || analysisId <= 0 || !Number.isInteger(analysisId)) {
+      console.error('Invalid analysis ID in DELETE route:', id, 'parsed to:', analysisId);
       return NextResponse.json(
         { error: "Invalid analysis ID" },
         { status: 400 }

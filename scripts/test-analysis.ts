@@ -28,7 +28,7 @@ async function main() {
 
   try {
     const result2 = await analyzeDanfo(CSV_FILE);
-    console.log(`\nFound ${result2.shape[0]} transactions with >= 4% gain\n`);
+    console.log(`\nFound ${result2.length} transactions with >= 4% gain\n`);
   } catch (error) {
     console.error('Error in danfo implementation:', error);
   }
