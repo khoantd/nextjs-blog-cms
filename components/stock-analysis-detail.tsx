@@ -9,6 +9,7 @@ import { ArrowLeft, TrendingUp, Calendar, DollarSign, BarChart3, Table, Brain, L
 import Link from "next/link";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
 import { FACTOR_DESCRIPTIONS } from "@/lib/stock-factors";
+import { formatPrice } from "@/lib/currency-utils";
 import { StockFactorTableBackend } from "@/components/stock-factor-table-backend";
 import { StockChart } from "@/components/stock-chart";
 import { DailyScoringTab } from "@/components/daily-scoring-tab";
@@ -216,6 +217,7 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
         return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
+
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -494,23 +496,25 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
               <div>
                 <h4 className="font-semibold mb-3">Factor Frequency</h4>
                 <div className="space-y-2">
-                  {Object.entries(results.factorAnalysis.summary.factorCounts)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5)
-                    .map(([factor, count]) => {
-                      const description = FACTOR_DESCRIPTIONS[factor as keyof typeof FACTOR_DESCRIPTIONS];
-                      return (
-                        <div key={factor} className="flex justify-between items-center">
-                          <Badge 
-                            variant="outline" 
-                            className={getFactorColor(description.category)}
-                          >
-                            {description.name}
-                          </Badge>
-                          <span className="text-sm font-medium">{count} days</span>
-                        </div>
-                      );
-                    })}
+                  {results?.factorAnalysis?.summary?.factorCounts
+                    ? Object.entries(results.factorAnalysis.summary.factorCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 5)
+                      .map(([factor, count]) => {
+                        const description = FACTOR_DESCRIPTIONS[factor as keyof typeof FACTOR_DESCRIPTIONS];
+                        return (
+                          <div key={factor} className="flex justify-between items-center">
+                            <Badge 
+                              variant="outline" 
+                              className={getFactorColor(description.category)}
+                            >
+                              {description.name}
+                            </Badge>
+                            <span className="text-sm font-medium">{count} days</span>
+                          </div>
+                        );
+                      })
+                    : null}
                 </div>
               </div>
 
@@ -518,7 +522,7 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
               <div>
                 <h4 className="font-semibold mb-3">Top Performing Factors</h4>
                 <div className="space-y-2">
-                  {results.factorAnalysis.correlation &&
+                  {results?.factorAnalysis?.correlation &&
                     Object.entries(results.factorAnalysis.correlation)
                       .sort((a, b) => b[1].avgReturn - a[1].avgReturn)
                       .slice(0, 5)
@@ -591,16 +595,16 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
                   availableIndicators: ['MA20', 'MA50', 'MA200', 'RSI', 'Volume']
                 },
                 factorData: {
-                  exists: results.factorAnalysis ? true : false,
-                  completeness: results.factorAnalysis ? 75 : 0,
-                  totalFactors: results.transactions?.length || 0,
+                  exists: results?.factorAnalysis ? true : false,
+                  completeness: results?.factorAnalysis ? 75 : 0,
+                  totalFactors: results?.transactions?.length || 0,
                   aiFactorsAvailable: true
                 },
                 dailyScoring: {
                   available: true, // This would be checked from the database
                   completeness: 60, // This would be calculated
                   scoredDays: 15, // This would be fetched from database
-                  totalDays: results.transactions?.length || 0
+                  totalDays: results?.totalDays || 0
                 },
                 aiAnalysis: {
                   completed: currentStatus === 'ai_completed',
@@ -641,7 +645,7 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
           </TabsContent>
 
           <TabsContent value="data" className="space-y-4">
-            {results.transactions.length > 0 ? (
+            {results?.transactions && results.transactions.length > 0 ? (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -649,7 +653,7 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
                     Significant Price Increases
                   </CardTitle>
                   <CardDescription>
-                    Days where closing price increased by {results.minPctChange}% or more
+                    Days where closing price increased by {results?.minPctChange || 4}% or more
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -685,7 +689,7 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
                               {new Date(transaction.date).toLocaleDateString()}
                             </td>
                             <td className="p-3 text-right font-medium">
-                              ${transaction.close.toFixed(2)}
+                              {formatPrice(transaction.close, analysis.symbol)}
                             </td>
                             <td className="p-3 text-right">
                               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -732,7 +736,7 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
                 <CardContent className="flex flex-col items-center justify-center p-12">
                   <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">
-                    No days found with price increases of {results.minPctChange}% or more
+                    No days found with price increases of {results?.minPctChange || 4}% or more
                   </p>
                 </CardContent>
               </Card>
@@ -740,7 +744,7 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
           </TabsContent>
 
           <TabsContent value="chart" className="space-y-4">
-            <StockChart results={results} />
+            <StockChart results={results} symbol={analysis.symbol} />
           </TabsContent>
 
           <TabsContent value="factors" className="space-y-4">

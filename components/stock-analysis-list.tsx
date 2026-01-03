@@ -6,8 +6,9 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Upload, Loader2, AlertCircle } from "lucide-react";
+import { TrendingUp, Upload, Loader2, AlertCircle, TrendingDown, DollarSign } from "lucide-react";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
+import { formatPrice } from "@/lib/currency-utils";
 
 interface ApiResponse<T> {
   data: T;
@@ -52,6 +53,23 @@ export function StockAnalysisList() {
     } catch {
       return null;
     }
+  };
+
+  const formatPriceWithNull = (price: number | null, symbol: string): string => {
+    if (price === null) return "N/A";
+    return formatPrice(price, symbol);
+  };
+
+
+  const formatPriceChange = (change: number | null, changePercent: number | null): { text: string; color: string } => {
+    if (change === null || changePercent === null) {
+      return { text: "N/A", color: "text-muted-foreground" };
+    }
+    
+    const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`;
+    const color = change >= 0 ? "text-green-600" : "text-red-600";
+    
+    return { text: changeText, color };
   };
 
   if (isLoading) {
@@ -127,9 +145,33 @@ export function StockAnalysisList() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-3">
+                      {/* Price Information */}
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Latest Price</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold text-lg">
+                            {formatPriceWithNull(analysis.latestPrice, analysis.symbol)}
+                          </div>
+                          <div className={`text-sm flex items-center justify-end space-x-1 ${formatPriceChange(analysis.priceChange, analysis.priceChangePercent).color}`}>
+                            {analysis.priceChange !== null && analysis.priceChange >= 0 ? (
+                              <TrendingUp className="h-3 w-3" />
+                            ) : analysis.priceChange !== null ? (
+                              <TrendingDown className="h-3 w-3" />
+                            ) : null}
+                            <span>
+                              {formatPriceChange(analysis.priceChange, analysis.priceChangePercent).text}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Analysis Results */}
                       {results && (
-                        <>
+                        <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Total Days:</span>
                             <span className="font-medium">{results.totalDays}</span>
@@ -144,9 +186,10 @@ export function StockAnalysisList() {
                             <span className="text-muted-foreground">Threshold:</span>
                             <span className="font-medium">≥ {results.minPctChange}%</span>
                           </div>
-                        </>
+                        </div>
                       )}
-                      <div className="flex justify-between pt-2 border-t">
+                      
+                      <div className="flex justify-between pt-2 border-t text-sm">
                         <span className="text-muted-foreground">Created:</span>
                         <span className="font-medium">
                           {new Date(analysis.createdAt).toLocaleDateString()}

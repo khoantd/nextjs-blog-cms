@@ -18,9 +18,11 @@ import {
 } from "recharts";
 import { TrendingUp, BarChart3 } from "lucide-react";
 import type { StockAnalysisResult, Transaction } from "@/lib/types/stock-analysis";
+import { formatPrice, getCurrencyCode } from "@/lib/currency-utils";
 
 interface StockChartProps {
   results: StockAnalysisResult;
+  symbol?: string;
 }
 
 interface ChartData {
@@ -31,14 +33,38 @@ interface ChartData {
   significant: boolean;
 }
 
-export function StockChart({ results }: StockChartProps) {
+export function StockChart({ results, symbol }: StockChartProps) {
+
+  // Return early if no transactions data
+  if (!results?.transactions || results.transactions.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Stock Chart
+          </CardTitle>
+          <CardDescription>
+            Price movement and significant increases
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center p-12">
+          <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">
+            No transaction data available for charting
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // Process transaction data for charting
   const chartData: ChartData[] = results.transactions.map((tx: Transaction) => ({
     date: new Date(tx.date).toLocaleDateString(),
     price: tx.close,
     pctChange: tx.pctChange,
     volume: Math.random() * 1000000 + 500000, // Mock volume data since it's not in the transaction
-    significant: tx.pctChange >= results.minPctChange,
+    significant: tx.pctChange >= (results?.minPctChange || 4),
   }));
 
   // Custom tooltip for the charts
@@ -48,7 +74,7 @@ export function StockChart({ results }: StockChartProps) {
       return (
         <div className="bg-background border rounded-lg p-3 shadow-lg">
           <p className="font-semibold">{label}</p>
-          <p className="text-sm">Price: ${data.price.toFixed(2)}</p>
+          <p className="text-sm">Price: {formatPrice(data.price, symbol || 'USD')}</p>
           <p className={`text-sm ${data.pctChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             Change: {data.pctChange >= 0 ? '+' : ''}{data.pctChange.toFixed(2)}%
           </p>
@@ -95,7 +121,7 @@ export function StockChart({ results }: StockChartProps) {
                 dataKey="price"
                 stroke="#2563eb"
                 strokeWidth={2}
-                name="Price ($)"
+                name={`Price (${getCurrencyCode(symbol || 'USD')})`}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -110,7 +136,7 @@ export function StockChart({ results }: StockChartProps) {
             Daily Price Changes
           </CardTitle>
           <CardDescription>
-            Percentage changes with threshold line at {results.minPctChange}%
+            Percentage changes with threshold line at {results?.minPctChange || 4}%
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -190,7 +216,7 @@ export function StockChart({ results }: StockChartProps) {
             <div className="flex flex-col space-y-1">
               <span className="text-sm text-muted-foreground">Price Range</span>
               <span className="text-lg font-semibold">
-                ${Math.min(...chartData.map(d => d.price)).toFixed(2)} - ${Math.max(...chartData.map(d => d.price)).toFixed(2)}
+                {formatPrice(Math.min(...chartData.map(d => d.price)), symbol || 'USD')} - {formatPrice(Math.max(...chartData.map(d => d.price)), symbol || 'USD')}
               </span>
             </div>
             <div className="flex flex-col space-y-1">

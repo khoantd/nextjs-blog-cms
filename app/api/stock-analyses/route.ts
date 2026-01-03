@@ -8,6 +8,28 @@ import { canViewStockAnalyses, canCreateStockAnalysis } from "@/lib/auth";
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 
+// Helper function to fetch stock price
+async function fetchStockPrice(symbol: string) {
+  try {
+    const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/stock-price/${symbol}`, {
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    });
+    
+    if (!response.ok) {
+      console.warn(`Failed to fetch stock price for ${symbol}: ${response.status}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`Error fetching stock price for ${symbol}:`, error);
+    return null;
+  }
+}
+
 /**
  * GET /api/stock-analyses
  * List all stock analyses
@@ -84,6 +106,25 @@ export async function POST(request: Request) {
     const analysisResult = analyzeStockDataFromCSV(csvContent, symbol, minPctChange, market);
     console.log('[Stock Analysis] Analysis complete, transactions found:', analysisResult.transactionsFound);
 
+    // Fetch latest stock price
+    console.log('[Stock Analysis] Fetching latest stock price for symbol:', symbol);
+    const stockPriceData = await fetchStockPrice(symbol);
+    
+    let latestPrice = null;
+    let priceChange = null;
+    let priceChangePercent = null;
+    let priceUpdatedAt = null;
+    
+    if (stockPriceData) {
+      latestPrice = stockPriceData.price;
+      priceChange = stockPriceData.change;
+      priceChangePercent = stockPriceData.changePercent;
+      priceUpdatedAt = new Date();
+      console.log('[Stock Analysis] Stock price fetched:', { latestPrice, priceChange, priceChangePercent });
+    } else {
+      console.log('[Stock Analysis] Failed to fetch stock price, using null values');
+    }
+
     // Save CSV file for future factor analysis
     const csvDir = join(process.cwd(), 'uploads', 'stock-csvs');
     mkdirSync(csvDir, { recursive: true });
@@ -92,22 +133,56 @@ export async function POST(request: Request) {
     writeFileSync(csvFilePath, csvContent);
     console.log('[Stock Analysis] CSV file saved to:', csvFilePath);
 
-    // Check for duplicate: same symbol with same analysis results
+    // Check for duplicate based on symbol + date range
+    // Extract date range from the analysis result
+    const analysisDates = analysisResult.transactions.map(tx => tx.date).sort();
+    const dateRangeStart = analysisDates[0];
+    const dateRangeEnd = analysisDates[analysisDates.length - 1];
+    
+    // Check for existing analysis with same symbol and overlapping date range
     const existingAnalysis = await prisma.stockAnalysis.findFirst({
       where: {
         symbol: symbol.toUpperCase(),
-        analysisResults: JSON.stringify(analysisResult),
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    if (existingAnalysis && !overwrite) {
-      console.log('[Stock Analysis] Duplicate detected, asking user for confirmation. ID:', existingAnalysis.id);
+    // If existing analysis found, check for date overlap
+    let hasDateOverlap = false;
+    if (existingAnalysis) {
+      try {
+        const existingResults = JSON.parse(existingAnalysis.analysisResults || '{}');
+        const existingDates = existingResults.transactions?.map((tx: any) => tx.date) || [];
+        const existingDateRange = existingDates.sort((a: string, b: string) => a.localeCompare(b));
+        const existingStart = existingDateRange[0];
+        const existingEnd = existingDateRange[existingDateRange.length - 1];
+        
+        // Check if date ranges overlap
+        hasDateOverlap = !(
+          dateRangeEnd < existingStart || 
+          dateRangeStart > existingEnd
+        );
+        
+        console.log('[Stock Analysis] Date overlap check:', {
+          newRange: `${dateRangeStart} to ${dateRangeEnd}`,
+          existingRange: `${existingStart} to ${existingEnd}`,
+          hasOverlap: hasDateOverlap
+        });
+      } catch (parseError) {
+        console.warn('[Stock Analysis] Failed to parse existing analysis results:', parseError);
+        // If we can't parse existing results, treat as potential duplicate
+        hasDateOverlap = true;
+      }
+    }
+
+    if (hasDateOverlap && !overwrite) {
+      console.log('[Stock Analysis] Overlapping data detected, asking user for confirmation. ID:', existingAnalysis?.id);
       return NextResponse.json(
         {
-          error: "Duplicate analysis detected",
-          details: "This exact analysis for this symbol already exists.",
-          existingId: existingAnalysis.id,
+          error: "Overlapping data detected",
+          details: `Data for ${symbol.toUpperCase()} from ${dateRangeStart} to ${dateRangeEnd} overlaps with existing analysis.`,
+          existingId: existingAnalysis?.id,
+          dateRange: { start: dateRangeStart, end: dateRangeEnd },
           requiresConfirmation: true
         },
         { status: 409 } // 409 Conflict
@@ -116,7 +191,7 @@ export async function POST(request: Request) {
 
     let stockAnalysis;
 
-    if (existingAnalysis && overwrite) {
+    if (existingAnalysis && overwrite && hasDateOverlap) {
       // Update existing record
       console.log('[Stock Analysis] Overwriting existing record ID:', existingAnalysis.id);
       stockAnalysis = await prisma.stockAnalysis.update({
@@ -129,6 +204,10 @@ export async function POST(request: Request) {
           aiInsights: null,
           minPctChange,
           csvFilePath,
+          latestPrice,
+          priceChange,
+          priceChangePercent,
+          priceUpdatedAt,
           updatedAt: new Date()
         }
       });
@@ -144,7 +223,11 @@ export async function POST(request: Request) {
           status: 'processing',
           analysisResults: JSON.stringify(analysisResult),
           aiInsights: null,
-          minPctChange
+          minPctChange,
+          latestPrice,
+          priceChange,
+          priceChangePercent,
+          priceUpdatedAt
         }
       });
       console.log('[Stock Analysis] Database record created with ID:', stockAnalysis.id);

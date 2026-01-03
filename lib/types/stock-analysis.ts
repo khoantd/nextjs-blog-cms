@@ -41,6 +41,10 @@ export interface StockAnalysis {
   status: StockAnalysisStatus | null;
   analysisResults: string | null; // JSON stringified StockAnalysisResult
   aiInsights: string | null;
+  latestPrice: number | null;
+  priceChange: number | null;
+  priceChangePercent: number | null;
+  priceUpdatedAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   minPctChange: number;

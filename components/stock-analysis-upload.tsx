@@ -88,11 +88,14 @@ export function StockAnalysisUpload() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
 
-        // Handle duplicate detection (409 Conflict)
+        // Handle overlapping data detection (409 Conflict)
         if (response.status === 409 && errorData.requiresConfirmation) {
-          const shouldOverwrite = window.confirm(
-            `${errorData.details}\n\nWould you like to:\n- Click "OK" to OVERWRITE the existing data\n- Click "Cancel" to view the existing analysis without uploading`
-          );
+          const dateRange = errorData.dateRange;
+          const message = dateRange 
+            ? `${errorData.details}\n\nWould you like to:\n- Click "OK" to OVERWRITE the overlapping data\n- Click "Cancel" to view the existing analysis without uploading`
+            : `${errorData.details}\n\nWould you like to:\n- Click "OK" to OVERWRITE the existing data\n- Click "Cancel" to view the existing analysis without uploading`;
+          
+          const shouldOverwrite = window.confirm(message);
 
           if (shouldOverwrite) {
             // Retry with overwrite flag

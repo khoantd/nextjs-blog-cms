@@ -102,6 +102,10 @@ model StockAnalysis {
   status                    String?  // draft, analyzing, completed
   analysisResults           String?  @map("analysis_results") // JSON string with results
   aiInsights                String?  @map("ai_insights") // AI-generated insights
+  latestPrice               Float?   @map("latest_price") // Latest stock price
+  priceChange               Float?   @map("price_change") // Price change from previous close
+  priceChangePercent        Float?   @map("price_change_percent") // Percentage change
+  priceUpdatedAt            DateTime? @map("price_updated_at") // When price was last updated
   createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt                 DateTime @updatedAt @map("updated_at")
   minPctChange              Float    @default(4.0) @map("min_pct_change") // Threshold percentage
