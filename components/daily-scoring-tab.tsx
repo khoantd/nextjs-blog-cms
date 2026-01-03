@@ -14,7 +14,10 @@ import {
   BarChart3, 
   Settings,
   RefreshCw,
-  Download
+  Download,
+  Trash2,
+  Clock,
+  AlertTriangle
 } from "lucide-react";
 import type { DailyScoreResult, StockFactor } from "@/lib/stock-factors";
 
@@ -58,6 +61,7 @@ interface DailyScoringData {
   factorFrequency: Partial<Record<StockFactor, number>>;
   fromCache?: boolean;
   message?: string;
+  lastUpdated?: string; // Add last updated timestamp
 }
 
 export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK" }: DailyScoringTabProps) {
@@ -66,6 +70,8 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
 
   const fetchDailyScoring = async () => {
     setLoading(true);
@@ -177,13 +183,75 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
     URL.revokeObjectURL(url);
   };
 
+  const handleRegenerateDailyScoring = async () => {
+    setIsRegenerating(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/regenerate-daily-scoring`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        
+        if (response.status === 429) {
+          setError(errorData.message || 'Rate limit exceeded. Please wait before regenerating again.');
+        } else {
+          setError(errorData.error || 'Failed to regenerate daily scoring data');
+        }
+        return;
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // After regenerating, fetch the updated data
+        await fetchDailyScoring();
+        setShowRegenerateConfirm(false);
+        console.log('✅ Daily scoring data regenerated successfully');
+      } else {
+        setError(result.error || 'Failed to regenerate daily scoring data');
+      }
+    } catch (err) {
+      setError('Network error occurred during regeneration');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const formatLastUpdated = (lastUpdated?: string) => {
+    if (!lastUpdated) return null;
+    
+    const date = new Date(lastUpdated);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) {
+      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    } else if (diffHours > 0) {
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    } else {
+      return 'Just now';
+    }
+  };
+
   if (loading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin" />
-            <span>{isGenerating ? 'Generating daily scoring data...' : 'Analyzing daily scoring patterns...'}</span>
+            <span>
+              {isRegenerating ? 'Regenerating daily scoring data...' : 
+               isGenerating ? 'Generating daily scoring data...' : 
+               'Analyzing daily scoring patterns...'}
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -228,14 +296,33 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
           <p className="text-sm text-muted-foreground">
             Predict strong price movements using weighted factor analysis
           </p>
-          {data?.fromCache && (
-            <div className="flex items-center gap-1 mt-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-xs text-green-600">Loaded from database cache</span>
-            </div>
-          )}
+          <div className="flex items-center gap-4 mt-1">
+            {data?.fromCache && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-xs text-green-600">Loaded from database cache</span>
+              </div>
+            )}
+            {data?.dailyScores && data.dailyScores.length > 0 && (
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  {formatLastUpdated(data.dailyScores[0]?.date)}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
+          <Button 
+            onClick={() => setShowRegenerateConfirm(true)} 
+            variant="outline" 
+            size="sm"
+            disabled={isRegenerating || data?.analysis.totalDays === 0}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Regenerate
+          </Button>
           <Button onClick={fetchDailyScoring} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -246,6 +333,51 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
           </Button>
         </div>
       </div>
+
+      {/* Regeneration Confirmation Dialog */}
+      {showRegenerateConfirm && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-medium text-orange-900">Confirm Regeneration</h4>
+                <p className="text-sm text-orange-700 mt-1">
+                  This will delete all existing daily scoring data and regenerate it from the current factor data. 
+                  This action cannot be undone and may take a few moments to complete.
+                </p>
+                <div className="flex items-center gap-2 mt-3">
+                  <Button 
+                    onClick={handleRegenerateDailyScoring} 
+                    size="sm" 
+                    disabled={isRegenerating}
+                  >
+                    {isRegenerating ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Regenerate Now
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={() => setShowRegenerateConfirm(false)} 
+                    variant="outline" 
+                    size="sm"
+                    disabled={isRegenerating}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Key Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

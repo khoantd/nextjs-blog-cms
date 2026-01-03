@@ -168,7 +168,7 @@ export async function POST(
       // Retrieve the saved factor data
       factorData = await prisma.dailyFactorData.findMany({
         where: { stockAnalysisId: analysisId },
-        orderBy: { date: 'asc' }
+        orderBy: { date: 'desc' }
       });
       console.log(`Generated and saved ${factorData.length} days of factor data from database`);
     } else {

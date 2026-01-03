@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
 import { approveBlogPostAiSuggestions, publishBlogPost, sendBlogPostToReview, revertBlogPostFromReview, unpublishBlogPost } from "@/app/actions";
-import { canEditPost } from "@/lib/auth";
+import { canEditPost } from "@/lib/client-auth";
 
 export const BlogPostActions = ({ id, status }: { id: string; status?: string }) => {
   const router = useRouter();

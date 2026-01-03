@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { StockAnalysis } from "@/lib/types/stock-analysis";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-utils";
-import { canViewStockAnalyses } from "@/lib/auth";
+import { canViewStockAnalyses } from "@/lib/client-auth";
 import { redirect } from "next/navigation";
 
 async function loadStockAnalysis(id: string): Promise<StockAnalysis | null> {

@@ -14,6 +14,7 @@ import { StockChart } from "@/components/stock-chart";
 import { DailyScoringTab } from "@/components/daily-scoring-tab";
 import { EarningsTab } from "@/components/earnings-tab";
 import { DataQualityDashboard } from "@/components/data-quality-dashboard";
+import { CurrentStockPrice } from "@/components/current-stock-price";
 import { useRealTimeStatus } from "@/lib/hooks/use-real-time-status";
 
 interface StockAnalysisDetailProps {
@@ -217,6 +218,9 @@ export function StockAnalysisDetail({ analysis }: StockAnalysisDetailProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Current Stock Price */}
+      <CurrentStockPrice symbol={analysis.symbol} />
 
       {/* Factor Analysis Summary */}
       {results?.factorAnalysis && (

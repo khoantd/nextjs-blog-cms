@@ -23,14 +23,19 @@ export async function POST(
     // First, check if we already have daily scores in the database
     const existingScores = await prisma.dailyScore.findMany({
       where: { stockAnalysisId },
-      orderBy: { date: 'asc' }
+      orderBy: { date: 'desc' }
     });
 
     if (existingScores.length > 0) {
+      // Get stock analysis for symbol
+      const stockAnalysis = await prisma.stockAnalysis.findUnique({
+        where: { id: stockAnalysisId }
+      });
+
       // Return existing database data immediately
       const factorData = await prisma.dailyFactorData.findMany({
         where: { stockAnalysisId },
-        orderBy: { date: 'asc' }
+        orderBy: { date: 'desc' }
       });
 
       // Calculate summary from existing data
@@ -39,6 +44,16 @@ export async function POST(
       const averageScore = existingScores.reduce((sum: number, s: any) => sum + s.score, 0) / totalDays;
       const maxScore = Math.max(...existingScores.map((s: any) => s.score));
       const minScore = Math.min(...existingScores.map((s: any) => s.score));
+
+      // Adjust threshold dynamically if too few high-score days
+      let adjustedConfig = { ...DEFAULT_DAILY_SCORE_CONFIG };
+      if (highScoreDays === 0 && maxScore > 0) {
+        // If no high-score days but we have some scores, lower threshold to 75% of max score
+        adjustedConfig.threshold = Math.max(maxScore * 0.75, 0.15);
+      } else if (highScoreDays < totalDays * 0.05 && maxScore > 0.2) {
+        // If less than 5% high-score days and max score is decent, lower threshold
+        adjustedConfig.threshold = Math.max(maxScore * 0.6, 0.2);
+      }
 
       // Calculate factor frequency from existing factor data
       const factorFrequency: Record<string, number> = {};
@@ -63,6 +78,32 @@ export async function POST(
         factorFrequency[factor] = highScoreDays > 0 ? (count / highScoreDays) * 100 : 0;
       });
 
+      // Generate predictions for recent days
+      const predictions = [];
+      const recentFactorData = factorData.slice(0, 7); // First 7 days (most recent after DESC ordering)
+      
+      for (const data of recentFactorData) {
+        const currentFactors = {
+          volume_spike: data.volumeSpike || false,
+          market_up: data.marketUp || false,
+          earnings_window: data.earningsWindow || false,
+          break_ma50: data.breakMa50 || false,
+          rsi_over_60: data.rsiOver60 || false,
+          sector_up: data.sectorUp || false,
+          break_ma200: data.breakMa200 || false,
+          news_positive: data.newsPositive || false,
+          short_covering: data.shortCovering || false,
+          macro_tailwind: data.macroTailwind || false
+        };
+        
+        const prediction = generateDailyPrediction(stockAnalysis?.symbol || 'STOCK', currentFactors, adjustedConfig);
+        predictions.push({
+          ...prediction,
+          symbol: stockAnalysis?.symbol || 'STOCK',
+          date: data.date
+        });
+      }
+
       return NextResponse.json({
         success: true,
         data: {
@@ -82,7 +123,7 @@ export async function POST(
             factors: [], // Will be populated from factor data
             breakdown: score.breakdown ? JSON.parse(score.breakdown) : {}
           })),
-          predictions: [], // Empty predictions array for existing data
+          predictions,
           factorData: factorData.map((data: any) => ({
             date: data.date,
             close: data.close,
@@ -100,7 +141,7 @@ export async function POST(
               macro_tailwind: data.macroTailwind
             }
           })),
-          scoreConfig: DEFAULT_DAILY_SCORE_CONFIG,
+          scoreConfig: adjustedConfig,
           factorFrequency,
           fromCache: true,
           message: "Data loaded from database cache"

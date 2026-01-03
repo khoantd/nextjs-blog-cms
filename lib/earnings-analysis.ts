@@ -53,21 +53,32 @@ export class EarningsAnalysisService {
   }
 
   private createAnalysisPrompt(earnings: any): string {
-    const surpriseInfo = earnings.surprise 
-      ? `Earnings surprise: ${(earnings.surprise * 100).toFixed(2)}%`
+    // Only use data fields that are displayed in the UI
+    const displayedData = {
+      company: earnings.company || earnings.symbol,
+      earningsDate: new Date(earnings.earningsDate).toLocaleDateString(),
+      reportType: earnings.reportType,
+      expectedEPS: earnings.expectedEPS,
+      actualEPS: earnings.actualEPS,
+      surprise: earnings.surprise,
+      revenue: earnings.revenue
+    };
+
+    const surpriseInfo = displayedData.surprise !== null && displayedData.surprise !== undefined
+      ? `Earnings surprise: ${(displayedData.surprise * 100).toFixed(2)}%`
       : 'No earnings surprise data available';
 
-    const revenueInfo = earnings.revenue && earnings.expectedRevenue
-      ? `Revenue: $${earnings.revenue.toLocaleString()}M vs Expected: $${earnings.expectedRevenue.toLocaleString()}M`
-      : 'No revenue comparison data available';
+    const revenueInfo = displayedData.revenue !== null && displayedData.revenue !== undefined
+      ? `Revenue: $${(displayedData.revenue / 1000000).toFixed(0)}M`
+      : 'No revenue data available';
 
     return `
-Analyze the following earnings data for ${earnings.company} (${earnings.symbol}):
+Analyze the following earnings data for ${displayedData.company}:
 
-Report Type: ${earnings.reportType}
-Earnings Date: ${earnings.earningsDate.toLocaleDateString()}
-Expected EPS: ${earnings.expectedEPS || 'N/A'}
-Actual EPS: ${earnings.actualEPS || 'N/A'}
+Report Type: ${displayedData.reportType}
+Earnings Date: ${displayedData.earningsDate}
+Expected EPS: ${displayedData.expectedEPS ? `$${displayedData.expectedEPS.toFixed(2)}` : 'N/A'}
+Actual EPS: ${displayedData.actualEPS ? `$${displayedData.actualEPS.toFixed(2)}` : 'N/A'}
 ${surpriseInfo}
 ${revenueInfo}
 

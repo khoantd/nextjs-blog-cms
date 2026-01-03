@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { workflowTemplates, formatWorkflowAsJson, availableActions } from "@/lib/workflow-templates";
 import { EditIcon, PlusIcon, TrashIcon, SaveIcon } from "lucide-react";
 import Link from "next/link";
-import { canManageWorkflows, canDeletePost } from "@/lib/auth";
+import { canManageWorkflows, canDeletePost } from "@/lib/client-auth";
 
 interface Workflow {
   id: number;

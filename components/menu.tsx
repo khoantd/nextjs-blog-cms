@@ -1,6 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { FileTextIcon, ZapIcon, TrendingUp } from "lucide-react";
+import { FileTextIcon, ZapIcon, TrendingUp, DollarSign } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { UserProfile } from "./user-profile";
 
@@ -33,6 +33,14 @@ export const Menu = () => {
         >
           <TrendingUp className="mr-2 h-4 w-4" />
           Stock Analysis
+        </Button>
+        <Button
+          variant={pathname.startsWith("/stock-price-demo") ? "default" : "ghost"}
+          className="w-full justify-start mb-2"
+          onClick={() => router.push("/stock-price-demo")}
+        >
+          <DollarSign className="mr-2 h-4 w-4" />
+          Stock Price
         </Button>
         <Button
           variant={pathname.startsWith("/workflows") ? "default" : "ghost"}
