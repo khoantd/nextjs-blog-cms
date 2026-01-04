@@ -79,6 +79,7 @@ export async function POST(
     }
 
     // Check for rate limiting - only allow regeneration once per hour per analysis
+    // unless user has admin privileges to bypass cooldown
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentRegeneration = await prisma.dailyScore.findFirst({
       where: {
@@ -89,7 +90,10 @@ export async function POST(
       }
     });
 
-    if (recentRegeneration) {
+    // Check if user can bypass cooldown (admin role)
+    const canBypassCooldown = user.role === 'admin';
+
+    if (recentRegeneration && !canBypassCooldown) {
       const timeUntilNextRegeneration = Math.ceil(
         (60 * 60 * 1000 - (Date.now() - recentRegeneration.updatedAt.getTime())) / (60 * 1000)
       );
@@ -98,8 +102,13 @@ export async function POST(
         success: false,
         error: "Rate limit exceeded",
         message: `Daily scoring was recently regenerated. Please wait ${timeUntilNextRegeneration} minutes before regenerating again.`,
-        cooldownMinutes: timeUntilNextRegeneration
+        cooldownMinutes: timeUntilNextRegeneration,
+        canBypassCooldown: false
       }, { status: 429 });
+    }
+
+    if (recentRegeneration && canBypassCooldown) {
+      console.log(`⚠️ Admin user ${user.email} bypassing cooldown for analysis ${analysisId}`);
     }
 
     console.log(`🔄 Starting regeneration of daily scoring for analysis ${analysisId}...`);
