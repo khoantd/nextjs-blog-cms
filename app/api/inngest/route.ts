@@ -1,12 +1,15 @@
 import { inngest } from "@/lib/inngest/client";
 import { serve } from "inngest/next";
-import blogPostWorkflow from "@/lib/inngest/workflow";
+import { blogReviewWorkflow, socialMediaWorkflow, quickPublishWorkflow } from "@/lib/inngest/blog-workflows";
 
 export const runtime = "nodejs";
 
-// Standard Inngest serve pattern for Next.js App Router
-// Use explicit assignment to ensure exports are properly generated
+// Register all workflow functions
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [blogPostWorkflow],
+  functions: [
+    blogReviewWorkflow,
+    socialMediaWorkflow, 
+    quickPublishWorkflow
+  ],
 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { generatePriceRecommendations, StockAnalysisData } from '@/lib/ai-price-recommendations';
+import type { StockAnalysis } from '@/lib/types/stock-analysis';
 
 const prisma = new PrismaClient();
 
@@ -22,7 +23,7 @@ export async function POST(
     // Get the stock analysis
     const stockAnalysis = await prisma.stockAnalysis.findUnique({
       where: { id: analysisId }
-    });
+    }) as StockAnalysis | null;
 
     if (!stockAnalysis) {
       return NextResponse.json(

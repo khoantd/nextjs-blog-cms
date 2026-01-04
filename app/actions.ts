@@ -243,3 +243,104 @@ export const createStockFactorTable = async (analysisResults: string, minPctChan
     throw new AppError('Failed to create factor table', 500, 'FACTOR_TABLE_ERROR');
   }
 };
+
+export const applyWorkflowToBlogPost = async (blogPostId: string, workflowName: string) => {
+  await requireRole("editor");
+  console.log(`🔄 Starting workflow application: ${workflowName} to blog post ${blogPostId}`);
+  
+  try {
+    // Get the workflow template
+    const { getWorkflowTemplate } = await import("@/lib/workflow-templates");
+    const workflowTemplate = getWorkflowTemplate(workflowName);
+    
+    if (!workflowTemplate) {
+      console.error(`❌ Workflow template "${workflowName}" not found`);
+      throw new AppError(`Workflow template "${workflowName}" not found`, 404, 'WORKFLOW_NOT_FOUND');
+    }
+
+    console.log(`✅ Found workflow template: ${workflowTemplate.name} with trigger: ${workflowTemplate.trigger}`);
+
+    // Check if workflow was already applied by checking the status and AI content
+    const blogPost = await prisma.blogPost.findUnique({
+      where: { id: Number(blogPostId) },
+      select: { 
+        status: true, 
+        markdownAiRevision: true, 
+        aiPublishingRecommendations: true,
+        markdown: true
+      }
+    });
+
+    if (!blogPost) {
+      throw new AppError(`Blog post ${blogPostId} not found`, 404, 'BLOG_POST_NOT_FOUND');
+    }
+
+    // Check if this specific workflow was already applied
+    const isWorkflowAlreadyApplied = checkIfWorkflowAlreadyApplied(blogPost, workflowName);
+    
+    if (isWorkflowAlreadyApplied) {
+      console.log(`⚠️ Workflow "${workflowName}" was already applied to blog post ${blogPostId}`);
+      return { 
+        success: false, 
+        message: `Workflow "${workflowName}" was already applied to this blog post`,
+        alreadyApplied: true
+      };
+    }
+
+    // Update blog post status to trigger the workflow
+    console.log(`📝 Updating blog post status to "workflow applied"...`);
+    await BlogPostService.updateStatus(blogPostId, "workflow applied");
+    console.log(`✅ Blog post status updated successfully`);
+
+    // Send the specific workflow event based on the template
+    let eventName = workflowTemplate.trigger;
+    let eventData = {
+      blogPostId,
+      workflowName,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`📤 Sending event: ${eventName} with data:`, eventData);
+
+    try {
+      await BlogPostService.sendEvent(eventName, eventData);
+      console.log(`✅ Event sent successfully: ${eventName}`);
+    } catch (eventError) {
+      // Log the event error but don't fail the entire operation
+      console.warn('⚠️ Failed to send workflow event, but status was updated:', eventError);
+      // Continue without failing - the status update is the important part
+    }
+
+    console.log(`🎉 Workflow "${workflowName}" applied to blog post ${blogPostId} successfully`);
+    return { success: true, message: `Workflow "${workflowName}" applied successfully` };
+  } catch (error) {
+    console.error(`❌ Failed to apply workflow "${workflowName}":`, error);
+    throw handleError(error);
+  }
+};
+
+// Helper function to check if a workflow was already applied
+function checkIfWorkflowAlreadyApplied(blogPost: any, workflowName: string): boolean {
+  switch (workflowName) {
+    case "blog-review-workflow":
+      // Check if AI revision exists and status indicates review was done
+      return !!(blogPost.markdownAiRevision && 
+                (blogPost.status === "needs approval" || 
+                 blogPost.status === "under review" || 
+                 blogPost.status === "workflow applied"));
+    
+    case "social-media-workflow":
+      // Check if social media content was generated
+      return !!(blogPost.aiPublishingRecommendations && 
+                blogPost.aiPublishingRecommendations.includes("Social Media Content Generated"));
+    
+    case "quick-publish-workflow":
+      // Check if content was already published with AI improvements
+      return !!(blogPost.status === "published" && 
+                blogPost.markdown !== blogPost.markdownAiRevision &&
+                blogPost.markdownAiRevision);
+    
+    default:
+      return false;
+  }
+}

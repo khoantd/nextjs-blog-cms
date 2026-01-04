@@ -76,7 +76,7 @@ export function StockChart({ results, symbol }: StockChartProps) {
           <p className="font-semibold">{label}</p>
           <p className="text-sm">Price: {formatPrice(data.price, symbol || 'USD')}</p>
           <p className={`text-sm ${data.pctChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            Change: {data.pctChange >= 0 ? '+' : ''}{data.pctChange.toFixed(2)}%
+            Change: {data.pctChange >= 0 ? '+' : ''}{(data.pctChange ?? 0).toFixed(2)}%
           </p>
           <p className="text-sm">Volume: {(data.volume / 1000000).toFixed(2)}M</p>
           {data.significant && (
@@ -222,19 +222,19 @@ export function StockChart({ results, symbol }: StockChartProps) {
             <div className="flex flex-col space-y-1">
               <span className="text-sm text-muted-foreground">Avg Daily Change</span>
               <span className="text-lg font-semibold">
-                {(chartData.reduce((sum, d) => sum + d.pctChange, 0) / chartData.length).toFixed(2)}%
+                {(chartData.reduce((sum, d) => sum + (d.pctChange ?? 0), 0) / chartData.length).toFixed(2)}%
               </span>
             </div>
             <div className="flex flex-col space-y-1">
               <span className="text-sm text-muted-foreground">Biggest Gain</span>
               <span className="text-lg font-semibold text-green-600">
-                +{Math.max(...chartData.map(d => d.pctChange)).toFixed(2)}%
+                +{Math.max(...chartData.map(d => d.pctChange ?? 0)).toFixed(2)}%
               </span>
             </div>
             <div className="flex flex-col space-y-1">
               <span className="text-sm text-muted-foreground">Biggest Loss</span>
               <span className="text-lg font-semibold text-red-600">
-                {Math.min(...chartData.map(d => d.pctChange)).toFixed(2)}%
+                {Math.min(...chartData.map(d => d.pctChange ?? 0)).toFixed(2)}%
               </span>
             </div>
           </div>

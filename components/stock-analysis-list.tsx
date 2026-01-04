@@ -128,7 +128,7 @@ export function StockAnalysisList() {
 
 
   const formatPriceChange = (change: number | null, changePercent: number | null): { text: string; color: string } => {
-    if (change === null || changePercent === null) {
+    if (change === null || changePercent === null || change === undefined || changePercent === undefined) {
       return { text: "N/A", color: "text-muted-foreground" };
     }
     

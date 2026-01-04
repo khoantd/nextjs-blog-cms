@@ -80,7 +80,7 @@ export const BlogPostList = () => {
                 <CardTitle>{blogPost.title}</CardTitle>
                 <CardDescription>{blogPost.subtitle}</CardDescription>
               </div>
-              {blogPost.status === "needs approval" && (
+              {blogPost.status?.toLowerCase() === "needs approval" && (
                 <div className="flex">
                   <Badge variant="secondary">
                     An AI revision need approval
@@ -105,9 +105,15 @@ export const BlogPostList = () => {
               <div className="flex gap-2">
                 <div
                   className={`px-2 py-1 rounded-full text-xs ${
-                    blogPost.status === "published"
+                    blogPost.status?.toLowerCase() === "published"
                       ? "bg-green-100 text-green-800"
-                      : "bg-yellow-100 text-yellow-800"
+                      : blogPost.status?.toLowerCase() === "draft"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : blogPost.status?.toLowerCase() === "under review"
+                      ? "bg-blue-100 text-blue-800"
+                      : blogPost.status?.toLowerCase() === "needs approval"
+                      ? "bg-orange-100 text-orange-800"
+                      : "bg-gray-100 text-gray-800"
                   }`}
                 >
                   {capitalize(blogPost.status || 'draft')}
@@ -128,7 +134,7 @@ export const BlogPostList = () => {
                         <Edit className="mr-2 h-4 w-4" /> Review
                       </Link>
                     </Button>
-                  ) : blogPost.status === "draft" ? (
+                  ) : blogPost.status?.toLowerCase() === "draft" ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -136,7 +142,7 @@ export const BlogPostList = () => {
                     >
                       <RocketIcon className="mr-2 h-4 w-4" /> Send to review
                     </Button>
-                  ) : blogPost.status === "under review" ? (
+                  ) : blogPost.status?.toLowerCase() === "under review" ? (
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/blog-post/${blogPost.id}`}>
                         <Edit className="mr-2 h-4 w-4" /> Review

@@ -149,3 +149,4 @@ export const canViewWorkflows = (role: UserRole) => role === "viewer" || role ==
 export const canCreateStockAnalysis = (role: UserRole) => hasPermission(role, "editor");
 export const canViewStockAnalyses = (role: UserRole) => role === "viewer" || role === "editor" || role === "admin";
 export const canDeleteStockAnalysis = (role: UserRole) => hasPermission(role, "admin");
+export const canViewUsers = (role: UserRole) => hasPermission(role, "admin");

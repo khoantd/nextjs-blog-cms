@@ -15,7 +15,7 @@ export const workflowTemplates: WorkflowTemplate[] = [
   {
     name: "blog-review-workflow",
     description: "Automated blog post review with AI assistance",
-    trigger: "blog-post.created",
+    trigger: "blog-post.updated",
     steps: [
       {
         id: "1",
@@ -54,7 +54,7 @@ export const workflowTemplates: WorkflowTemplate[] = [
   {
     name: "quick-publish-workflow",
     description: "Fast-track workflow for urgent posts",
-    trigger: "blog-post.urgent",
+    trigger: "blog-post.updated",
     steps: [
       {
         id: "1",

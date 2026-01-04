@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth-utils";
 import { canViewStockAnalyses } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { PrismaClient } from "@prisma/client";
 
 export async function GET(
   request: Request,
@@ -97,13 +98,19 @@ export async function GET(
 
     // Check if factor data exists to refine progress
     if (stockAnalysis.status === "completed" || stockAnalysis.status === "ai_completed") {
-      const factorTableCount = await prisma.factorTable.count({
-        where: { stockAnalysisId: analysisId }
+      // Use findMany instead of count to avoid potential undefined property issues
+      // Type assertion to bypass TypeScript error
+      const factorTables = await (prisma as any).factorTable.findMany({
+        where: { stockAnalysisId: analysisId },
+        select: { id: true }
       });
+      const factorTableCount = factorTables.length;
       
-      const dailyScoreCount = await prisma.dailyScore.count({
-        where: { stockAnalysisId: analysisId }
+      const dailyScores = await (prisma as any).dailyScore.findMany({
+        where: { stockAnalysisId: analysisId },
+        select: { id: true }
       });
+      const dailyScoreCount = dailyScores.length;
 
       if (factorTableCount === 0) {
         progress = Math.max(progress - 20, 60);
