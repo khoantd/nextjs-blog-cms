@@ -134,9 +134,9 @@ export function analyzeStockDataFromCSV(
     pct_change: pctChanges[index]
   }));
 
-  // Filter days with increase >= minPctChange%
+  // Store ALL days for complete analysis, not just significant ones
   const transactions = dataWithPctChange
-    .filter(row => !isNaN(row.pct_change) && row.pct_change >= minPctChange)
+    .filter(row => !isNaN(row.pct_change)) // Remove minPctChange filter - keep all days
     .map((row, index): Transaction | null => {
       const dateObj = new Date(row.Date);
 
