@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage for development
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=file:./data/dev.db
+    volumes:
+      - .:/app  # Mount entire project for live development
+      - /app/node_modules  # Avoid overwriting node_modules
+      - ./data:/app/data  # Persist database file
+      - ./uploads:/app/uploads  # Persist uploaded files
+    command: npm run dev
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
