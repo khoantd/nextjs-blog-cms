@@ -23,11 +23,11 @@ export const createWorkflowSchema = z.object({
       id: z.string(),
       name: z.string(),
       type: z.enum(['ai-action', 'approval', 'notification']),
-      config: z.record(z.unknown()),
+      config: z.record(z.string(), z.unknown()),
     })),
     triggers: z.array(z.object({
       event: z.string(),
-      conditions: z.record(z.unknown()).optional(),
+      conditions: z.record(z.string(), z.unknown()).optional(),
     })),
   }),
 });
@@ -43,7 +43,7 @@ export const validateInput = <T>(schema: z.ZodSchema<T>, data: unknown): T => {
     return schema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const firstError = error.errors[0];
+      const firstError = error.issues[0];
       throw new Error(`Validation failed: ${firstError.message}`);
     }
     throw new Error('Validation failed');

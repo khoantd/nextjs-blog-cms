@@ -31,7 +31,7 @@ async function regenerateDailyScoring(analysisId: number) {
     console.log(`📊 Found analysis: ID=${stockAnalysis.id}, symbol=${stockAnalysis.symbol}`);
     
     // Check if daily scoring data exists
-    const existingScores = await prisma.dailyScores.findMany({
+    const existingScores = await prisma.dailyScore.findMany({
       where: { stockAnalysisId: analysisId }
     });
     
@@ -43,7 +43,7 @@ async function regenerateDailyScoring(analysisId: number) {
     console.log(`🗑️ Found ${existingScores.length} existing daily scores to delete`);
     
     // Delete existing daily scores
-    const deletedScores = await prisma.dailyScores.deleteMany({
+    const deletedScores = await prisma.dailyScore.deleteMany({
       where: { stockAnalysisId: analysisId }
     });
     
@@ -119,7 +119,7 @@ async function regenerateDailyScoring(analysisId: number) {
     
     // Bulk insert new daily scores
     for (const score of dailyScoresToSave) {
-      await prisma.dailyScores.upsert({
+      await prisma.dailyScore.upsert({
         where: {
           stockAnalysisId_date: {
             stockAnalysisId: score.stockAnalysisId,

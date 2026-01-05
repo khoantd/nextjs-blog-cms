@@ -45,7 +45,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
-    "inngest": "^3.19.14",
+    "inngest": "^3.48.1",
     "litellm": "^0.12.0",
     "lucide-react": "^0.441.0",
     "next": "^16.1.1",
@@ -60,7 +60,8 @@
     "sqlite3": "^5.1.7",
     "swr": "^2.2.5",
     "tailwind-merge": "^2.5.2",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/node": "^20",

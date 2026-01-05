@@ -4,7 +4,7 @@ import { blogReviewWorkflow, socialMediaWorkflow, quickPublishWorkflow } from "@
 
 export const runtime = "nodejs";
 
-// Register all workflow functions
+// Register all workflow functions using the newer pattern
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [

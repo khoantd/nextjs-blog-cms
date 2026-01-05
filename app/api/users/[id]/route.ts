@@ -5,9 +5,10 @@ import { canManageUsers } from "@/lib/auth";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     const user = await getCurrentUser();
     
     if (!user) {
@@ -25,7 +26,7 @@ export async function GET(
     }
 
     const targetUser = await prisma.user.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(resolvedParams.id) },
       select: {
         id: true,
         email: true,
@@ -56,9 +57,10 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     const currentUser = await getCurrentUser();
     
     if (!currentUser) {
@@ -85,7 +87,7 @@ export async function PATCH(
     }
 
     // Prevent changing own role
-    if (parseInt(currentUser.id) === parseInt(params.id)) {
+    if (parseInt(currentUser.id) === parseInt(resolvedParams.id)) {
       return NextResponse.json(
         { error: "Cannot change your own role" },
         { status: 400 }
@@ -95,7 +97,7 @@ export async function PATCH(
     // Check if this is the last admin user
     if (role !== "admin") {
       const targetUser = await prisma.user.findUnique({
-        where: { id: parseInt(params.id) },
+        where: { id: parseInt(resolvedParams.id) },
         select: { role: true },
       });
 
@@ -114,7 +116,7 @@ export async function PATCH(
     }
 
     const updatedUser = await prisma.user.update({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(resolvedParams.id) },
       data: { role },
       select: {
         id: true,
@@ -139,9 +141,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     const currentUser = await getCurrentUser();
     
     if (!currentUser) {
@@ -159,7 +162,7 @@ export async function DELETE(
     }
 
     // Prevent deleting self
-    if (parseInt(currentUser.id) === parseInt(params.id)) {
+    if (parseInt(currentUser.id) === parseInt(resolvedParams.id)) {
       return NextResponse.json(
         { error: "Cannot delete your own account" },
         { status: 400 }
@@ -168,7 +171,7 @@ export async function DELETE(
 
     // Check if this is the last admin user
     const targetUser = await prisma.user.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(resolvedParams.id) },
       select: { role: true },
     });
 
@@ -186,7 +189,7 @@ export async function DELETE(
     }
 
     await prisma.user.delete({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(resolvedParams.id) },
     });
 
     return NextResponse.json({ success: true });

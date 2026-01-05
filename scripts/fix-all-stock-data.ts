@@ -121,7 +121,7 @@ async function processStockData(stockAnalysisId: number, symbol: string, csvPath
             close,
             volume
           };
-        }).filter(row => row.date && !isNaN(row.close) && row.close > 0);
+        }).filter((row: any) => row.date && !isNaN(row.close) && row.close > 0);
         resolve(processedData);
       }
     });
