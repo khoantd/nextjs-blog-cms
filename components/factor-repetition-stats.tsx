@@ -127,7 +127,7 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
 
   // Calculate yearly statistics for the chart
   const calculateYearlyStats = () => {
-    if (!filteredData || filteredData.length === 0) return [];
+    if (!factorData || factorData.length === 0) return [];
 
     const factorColumns = [
       'volume_spike', 'break_ma50', 'break_ma200', 'rsi_over_60',
@@ -137,7 +137,7 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
 
     // Group data by year
     const yearlyData: { [year: number]: FactorData[] } = {};
-    filteredData.forEach(row => {
+    factorData.forEach(row => {
       const year = new Date(row.Date).getFullYear();
       if (!isNaN(year)) {
         if (!yearlyData[year]) {
@@ -178,7 +178,7 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
 
   // Calculate monthly statistics for the chart
   const calculateMonthlyStats = () => {
-    if (!filteredData || filteredData.length === 0) return [];
+    if (!factorData || factorData.length === 0) return [];
 
     const factorColumns = [
       'volume_spike', 'break_ma50', 'break_ma200', 'rsi_over_60',
@@ -188,7 +188,7 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
 
     // Group data by year-month (YYYY-MM format)
     const monthlyData: { [monthKey: string]: FactorData[] } = {};
-    filteredData.forEach(row => {
+    factorData.forEach(row => {
       const date = new Date(row.Date);
       if (!isNaN(date.getTime())) {
         const year = date.getFullYear();
@@ -494,7 +494,7 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
                     </p>
                     
                     {/* Monthly Summary Table */}
-                    <div className="mt-6 rounded-lg border bg-muted/40 p-4">
+                    <div className="mt-6 rounded-lg border bg-muted/30 p-4">
                       <h5 className="font-semibold mb-3">Monthly Factor Summary</h5>
                       <div className="overflow-x-auto">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -520,7 +520,7 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
             <div className="space-y-3">
               <h4 className="font-semibold text-lg">Factor Frequency Ranking</h4>
               {factorCounts.map((item, index) => (
-                <div key={item.factor} className="flex items-center justify-between p-3 rounded-lg border bg-muted/40">
+                <div key={item.factor} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
                       {index + 1}

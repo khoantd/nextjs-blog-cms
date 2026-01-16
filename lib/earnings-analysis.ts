@@ -1,178 +1,112 @@
-import { PrismaClient } from '@prisma/client';
-import { completion } from 'litellm';
-
-const prisma = new PrismaClient();
-
 export interface EarningsAnalysis {
   aiSummary: string;
   aiSentiment: 'positive' | 'negative' | 'neutral';
   aiKeyPoints: string[];
 }
 
+export interface EarningsData {
+  id: number;
+  symbol: string;
+  company?: string | null;
+  earningsDate: string | Date;
+  reportType: 'quarterly' | 'annual';
+  expectedEPS?: number | null;
+  actualEPS?: number | null;
+  surprise?: number | null;
+  revenue?: number | null;
+  expectedRevenue?: number | null;
+}
+
 export class EarningsAnalysisService {
-  async analyzeEarnings(earningsId: number): Promise<EarningsAnalysis> {
-    const earnings = await prisma.earningsData.findUnique({
-      where: { id: earningsId },
-    });
-
-    if (!earnings) {
-      throw new Error('Earnings data not found');
-    }
-
-    const prompt = this.createAnalysisPrompt(earnings);
-    
+  /**
+   * Trigger earnings analysis via backend API
+   * This is a fire-and-forget operation - the backend processes analysis asynchronously
+   */
+  async triggerAnalysis(symbols?: string[], earningsIds?: number[]): Promise<void> {
     try {
-      const response = await completion({
-        model: process.env["OPENAI_MODEL"] || "gpt-4o-mini",
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a financial analyst specializing in earnings analysis. Provide concise, data-driven insights.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        apiKey: process.env["LITELLM_API_KEY"] || process.env["OPENAI_API_KEY"],
-        baseUrl: process.env["LITELLM_BASE_URL"],
-        temperature: 0.3,
-        max_tokens: 1000,
+      const response = await fetch('/api/earnings/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          symbols,
+          earningsIds,
+        }),
       });
 
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('No response from AI');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || `HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return this.parseAIResponse(content);
+      // Analysis is triggered asynchronously, no immediate result
+      return;
     } catch (error) {
-      console.error('AI API error:', error);
-      throw new Error('Failed to analyze earnings with AI');
+      console.error('Failed to trigger earnings analysis:', error);
+      throw error;
     }
   }
 
-  private createAnalysisPrompt(earnings: any): string {
-    // Only use data fields that are displayed in the UI
-    const displayedData = {
-      company: earnings.company || earnings.symbol,
-      earningsDate: new Date(earnings.earningsDate).toLocaleDateString(),
-      reportType: earnings.reportType,
-      expectedEPS: earnings.expectedEPS,
-      actualEPS: earnings.actualEPS,
-      surprise: earnings.surprise,
-      revenue: earnings.revenue
-    };
-
-    const surpriseInfo = displayedData.surprise !== null && displayedData.surprise !== undefined
-      ? `Earnings surprise: ${(displayedData.surprise * 100).toFixed(2)}%`
-      : 'No earnings surprise data available';
-
-    const revenueInfo = displayedData.revenue !== null && displayedData.revenue !== undefined
-      ? `Revenue: $${(displayedData.revenue / 1000000).toFixed(0)}M`
-      : 'No revenue data available';
-
-    return `
-Analyze the following earnings data for ${displayedData.company}:
-
-Report Type: ${displayedData.reportType}
-Earnings Date: ${displayedData.earningsDate}
-Expected EPS: ${displayedData.expectedEPS ? `$${displayedData.expectedEPS.toFixed(2)}` : 'N/A'}
-Actual EPS: ${displayedData.actualEPS ? `$${displayedData.actualEPS.toFixed(2)}` : 'N/A'}
-${surpriseInfo}
-${revenueInfo}
-
-Please provide:
-1. A concise summary (2-3 sentences) of the earnings performance
-2. Overall sentiment (positive, negative, or neutral)
-3. 3-5 key bullet points highlighting the most important aspects
-
-Focus on:
-- EPS performance vs expectations
-- Revenue performance if available
-- Any significant surprises
-- Overall business health indicators
-- Market implications
-
-Respond in JSON format:
-{
-  "summary": "Your summary here",
-  "sentiment": "positive/negative/neutral",
-  "keyPoints": ["Point 1", "Point 2", "Point 3"]
-}
-`;
-  }
-
-  private parseAIResponse(response: string): EarningsAnalysis {
+  /**
+   * Fetch earnings data by ID from backend API
+   * Note: This fetches from the list endpoint and filters by ID
+   * For better performance, consider adding a GET /api/earnings/:id endpoint to the backend
+   */
+  private async fetchEarningsById(earningsId: number): Promise<EarningsData> {
     try {
-      // Try to extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
+      // Fetch from earnings list endpoint and filter by ID
+      // Note: Backend doesn't have a direct GET /api/earnings/:id endpoint
+      const response = await fetch('/api/earnings?limit=1000', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to fetch earnings: HTTP ${response.status}`);
       }
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      const result = await response.json();
+      const earningsList = result.data?.items || result.data || [];
       
-      return {
-        aiSummary: parsed.summary || 'No summary available',
-        aiSentiment: this.validateSentiment(parsed.sentiment),
-        aiKeyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
-      };
+      const earnings = earningsList.find((e: EarningsData) => e.id === earningsId);
+      
+      if (!earnings) {
+        throw new Error(`Earnings data with ID ${earningsId} not found`);
+      }
+
+      return earnings;
     } catch (error) {
-      console.error('Failed to parse AI response:', error);
-      
-      // Fallback parsing
-      return {
-        aiSummary: response.substring(0, 200) + '...',
-        aiSentiment: 'neutral',
-        aiKeyPoints: ['AI analysis available'],
-      };
+      console.error('Failed to fetch earnings data:', error);
+      throw error;
     }
   }
 
-  private validateSentiment(sentiment: string): 'positive' | 'negative' | 'neutral' {
-    const validSentiments = ['positive', 'negative', 'neutral'];
-    return validSentiments.includes(sentiment.toLowerCase()) 
-      ? sentiment.toLowerCase() as 'positive' | 'negative' | 'neutral'
-      : 'neutral';
+  /**
+   * Analyze a single earnings record
+   * Note: This triggers backend analysis asynchronously. Use triggerAnalysis() for direct control.
+   */
+  async analyzeEarnings(earningsId: number): Promise<void> {
+    return this.triggerAnalysis(undefined, [earningsId]);
   }
 
-  async analyzeMultipleEarnings(earningsIds: number[]): Promise<Map<number, EarningsAnalysis>> {
-    const results = new Map<number, EarningsAnalysis>();
-    
-    for (const id of earningsIds) {
-      try {
-        const analysis = await this.analyzeEarnings(id);
-        results.set(id, analysis);
-        
-        // Add delay to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (error) {
-        console.error(`Failed to analyze earnings ${id}:`, error);
-        
-        // Add fallback analysis
-        results.set(id, {
-          aiSummary: 'Analysis failed',
-          aiSentiment: 'neutral',
-          aiKeyPoints: ['AI analysis unavailable'],
-        });
-      }
-    }
-    
-    return results;
+  /**
+   * Trigger analysis for multiple earnings records
+   */
+  async analyzeMultipleEarnings(earningsIds: number[]): Promise<void> {
+    return this.triggerAnalysis(undefined, earningsIds);
   }
 
-  async updateEarningsWithAI(earningsId: number): Promise<void> {
-    const analysis = await this.analyzeEarnings(earningsId);
-    
-    await prisma.earningsData.update({
-      where: { id: earningsId },
-      data: {
-        aiSummary: analysis.aiSummary,
-        aiSentiment: analysis.aiSentiment,
-        aiKeyPoints: JSON.stringify(analysis.aiKeyPoints),
-      },
-    });
+  /**
+   * Trigger analysis for multiple symbols
+   */
+  async analyzeBySymbols(symbols: string[]): Promise<void> {
+    return this.triggerAnalysis(symbols);
   }
 }
 
