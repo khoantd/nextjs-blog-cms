@@ -3,7 +3,7 @@
 ## Project Overview
 This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase, and LiteLLM. The application features automated blog post processing including grammar fixes, table of contents generation, and publishing workflows. **Now includes Google OAuth authentication with role-based access control (RBAC)** and **Comprehensive Stock Analysis System with Factor Analysis, Daily Scoring, Earnings Integration, and Chart Visualization**.
 
-**Architecture Note**: This codebase follows enterprise-grade patterns with service layers, comprehensive error handling, strict type safety, secure authentication, interactive data visualization, and advanced financial analysis capabilities.
+**Architecture Note**: This codebase follows enterprise-grade patterns with service layers, comprehensive error handling, strict type safety, secure authentication, interactive data visualization, and advanced financial analysis capabilities. **Frontend uses remote API services exclusively - no direct database access from frontend code.**
 
 ## Tech Stack
 - **Framework**: Next.js 14 with App Router
@@ -39,7 +39,9 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - **Stock Details**: `/components/stock-analysis-detail.tsx` (analysis with chart tab)
 - **Stock Factors**: `/lib/stock-factors.ts` (factor analysis, daily scoring, technical indicators)
 - **Earnings Service**: `/lib/earnings-service.ts` (Alpha Vantage integration)
-- **Earnings Analysis**: `/lib/earnings-analysis.ts` (AI-powered earnings analysis)
+- **Earnings Analysis**: `/lib/earnings-analysis.ts` (AI-powered earnings analysis via backend API)
+- **API Config**: `/lib/api-config.ts` (Backend API configuration and request helpers)
+- **Earnings API Routes**: `/app/api/earnings/route.ts` and `/app/api/earnings/analyze/route.ts` (Proxy to backend)
 - **Price Recommendations**: `/lib/ai-price-recommendations.ts` (AI price target generation)
 - **Stock API**: `/lib/stock-api.ts` (stock data fetching utilities)
 - **Daily Scoring**: `/components/daily-scoring-tab.tsx` (daily scoring UI)
@@ -70,14 +72,16 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - **Responsive Design**: Use ResponsiveContainer from Recharts for mobile-friendly charts
 
 ### Database (Enhanced)
-- Use Prisma client from `/lib/prisma.ts`
-- Follow the existing schema structure in `/prisma/schema.prisma`
-- **CRITICAL**: Use service classes from `/app/actions.ts` instead of direct Prisma calls
-- Use BlogPostService for all blog post operations
+- **CRITICAL**: Frontend code MUST NOT use Prisma directly - use remote API services instead
+- **Backend Only**: Prisma is only used in backend services (`nextjs-blog-backend`)
+- **Frontend Pattern**: Frontend → Next.js API Routes → Backend API → Database
+- Use API routes in `/app/api` to proxy requests to backend
+- Use `serverApiRequestWithCookies()` from `/lib/api-config.ts` for server-side API calls
+- Use `API_CONFIG.BASE_URL` for backend URL configuration (defaults to remote backend)
 - Handle errors with custom error classes (DatabaseError, ValidationError)
-- Apply validation before database operations
-- **Auth models**: User, Account, Session, VerificationToken are managed by NextAuth/Prisma adapter
-- **Migrations**: Run `npm run db:generate` and `npm run db:migrate` after schema changes
+- Apply validation before API calls
+- **Auth models**: User, Account, Session, VerificationToken are managed by NextAuth/Prisma adapter (backend)
+- **Migrations**: Run `npm run db:generate` and `npm run db:migrate` after schema changes (backend only)
 
 ### Error Handling (NEW)
 - Use custom error classes from `/lib/errors.ts`
@@ -124,7 +128,9 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - **LiteLLM Integration**: Use `litellm` package directly via `import { completion } from 'litellm'`
 - **LiteLLM Configuration**: Set LITELLM_API_KEY and LITELLM_BASE_URL in environment variables
 - **Model Selection**: Use LiteLLM model format (e.g., "openai/gpt-4", "anthropic/claude-3")
-- **Direct Usage**: Code imports `completion` directly from `litellm` package (see `/lib/earnings-analysis.ts`, `/lib/ai-price-recommendations.ts`)
+- **Backend Only**: LiteLLM is used in backend services only - frontend triggers analysis via API
+- **Frontend Pattern**: Frontend calls `/api/earnings/analyze` → Backend processes with LiteLLM
+- **Direct Usage**: Backend code imports `completion` directly from `litellm` package
 - **Optional Proxy**: `/lib/litellm-proxy.ts` exists as a simple wrapper but is not the primary usage pattern
 - **CRITICAL Workflow Structure**: When creating workflows for the automation editor:
   - **DO NOT** include edge to `$sink` - the Inngest workflow kit auto-generates it
@@ -145,6 +151,7 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - **Required for AI**: OPENAI_API_KEY (prevents route initialization errors)
 - **Required for LiteLLM**: LITELLM_API_KEY, LITELLM_BASE_URL
 - **Required for Earnings**: ALPHA_VANTAGE_API_KEY (for earnings data fetching)
+- **Required for Backend API**: NEXT_PUBLIC_API_URL (defaults to `http://72.60.233.159:3050` if not set)
 - Include Supabase URL/keys and AI API keys
 - Never commit `.env.local` - use `.env.example` as template
 
@@ -153,9 +160,13 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - Use proper HTTP methods and error handling
 - Return consistent ApiResponse<T> pattern
 - Include proper TypeScript types
+- **CRITICAL**: Frontend API routes proxy to backend - use `serverApiRequestWithCookies()` helper
+- **Proxy Pattern**: Frontend API routes forward requests to backend API with cookie authentication
+- **Backend URL**: Use `API_CONFIG.BASE_URL` or `NEXT_PUBLIC_API_URL` env var (defaults to remote backend)
 - **NEW**: Apply validation schemas to all request bodies
 - **NEW**: Use custom error classes for error responses
 - **NEW**: Implement proper status codes based on error types
+- **Connection Errors**: Handle backend connection failures gracefully with user-friendly messages
 
 ### Testing
 - Test database operations thoroughly
@@ -165,9 +176,10 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 
 ### Performance
 - Use SWR for data fetching with proper caching
-- Optimize database queries with Prisma
+- Optimize API calls to backend (batch requests when possible)
 - Use Next.js Image optimization for images
 - Implement proper loading states
+- **Backend Optimization**: Backend handles database queries with Prisma (frontend doesn't access DB directly)
 
 ## Common Patterns
 
@@ -335,8 +347,11 @@ export async function deletePost(id: string) {
 - **`/components/stock-chart.tsx`** - Stock price visualization with Recharts
 - **`/components/stock-analysis-detail.tsx`** - Stock analysis with integrated chart tab
 - **`/lib/stock-factors.ts`** - Stock factor analysis, daily scoring, and technical indicators
-- **`/lib/earnings-service.ts`** - Alpha Vantage earnings data service
-- **`/lib/earnings-analysis.ts`** - AI-powered earnings analysis service
+- **`/lib/earnings-service.ts`** - Alpha Vantage earnings data service (external API)
+- **`/lib/earnings-analysis.ts`** - AI-powered earnings analysis service (triggers backend API)
+- **`/lib/api-config.ts`** - Backend API configuration and request helpers (`serverApiRequestWithCookies`, `API_CONFIG`)
+- **`/app/api/earnings/route.ts`** - Earnings list API route (proxies to backend)
+- **`/app/api/earnings/analyze/route.ts`** - Earnings analysis API route (proxies to backend)
 - **`/lib/ai-price-recommendations.ts`** - AI price recommendation generation
 - **`/components/daily-scoring-tab.tsx`** - Daily scoring analysis UI
 - **`/components/earnings-tab.tsx`** - Earnings data display component
@@ -445,10 +460,12 @@ Comprehensive stock analysis system with factor analysis, daily scoring, earning
 - **Real-time Updates**: Polling-based status updates for analysis progress
 
 #### 3. Earnings Analysis
-- **Alpha Vantage Integration**: Fetches quarterly/annual earnings data
-- **AI Analysis**: LiteLLM-powered earnings summary, sentiment, and key points
+- **Alpha Vantage Integration**: Fetches quarterly/annual earnings data (external API)
+- **AI Analysis**: LiteLLM-powered earnings summary, sentiment, and key points (backend processing)
+- **Frontend Pattern**: Frontend triggers analysis via `/api/earnings/analyze` → Backend processes asynchronously
 - **Data Transformation**: Converts Alpha Vantage format to internal structure
 - **Rate Limiting**: 12-second delays between API calls to respect limits
+- **Architecture**: Frontend → Next.js API Route → Backend API → Database (no direct DB access)
 
 #### 4. Price Recommendations
 - **AI-Powered**: Uses LiteLLM to generate buy/sell price targets
@@ -527,25 +544,76 @@ const prediction = predictStrongMovement(currentFactors, DEFAULT_DAILY_SCORE_CON
 ### Earnings Service Pattern
 ```typescript
 import { earningsService } from '@/lib/earnings-service';
-import { EarningsAnalysisService } from '@/lib/earnings-analysis';
+import { earningsAnalysisService } from '@/lib/earnings-analysis';
 
-// Fetch earnings data
+// Fetch earnings data from Alpha Vantage (external API)
 const earningsData = await earningsService.getEarningsData('AAPL');
 
-// Analyze with AI
-const analysisService = new EarningsAnalysisService();
-const analysis = await analysisService.analyzeEarnings(earningsId);
+// Trigger AI analysis via backend API (fire-and-forget)
+await earningsAnalysisService.triggerAnalysis(['AAPL']);
+// Or for specific earnings IDs:
+await earningsAnalysisService.triggerAnalysis(undefined, [earningsId1, earningsId2]);
+
+// Analysis is processed asynchronously by backend
+```
+
+### API Proxy Pattern (Frontend → Backend)
+```typescript
+// In /app/api/earnings/analyze/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { serverApiRequestWithCookies } from '@/lib/api-config';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    // Forward to backend API with cookies
+    const data = await serverApiRequestWithCookies(
+      '/api/earnings/analyze',
+      request,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }
+    );
+    
+    return NextResponse.json(data);
+  } catch (error) {
+    // Handle connection errors gracefully
+    const isConnectionError = (error as any)?.isConnectionError || false;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://72.60.233.159:3050';
+    
+    if (isConnectionError) {
+      return NextResponse.json(
+        { 
+          error: 'Backend connection failed',
+          message: `Cannot connect to backend at ${backendUrl}`,
+          backendUrl,
+        },
+        { status: 503 }
+      );
+    }
+    
+    return NextResponse.json(
+      { error: 'Failed to trigger earnings analysis' },
+      { status: 500 }
+    );
+  }
+}
 ```
 
 ### API Routes for Stock Analysis
-- **`/api/stock-analyses`**: GET (list), POST (create with CSV upload)
-- **`/api/stock-analyses/[id]`**: GET (single), DELETE
-- **`/api/stock-analyses/[id]/regenerate-factors`**: POST (regenerate factor analysis)
-- **`/api/stock-analyses/[id]/daily-scoring-db`**: POST (get/generate daily scoring)
-- **`/api/stock-analyses/[id]/csv-content`**: GET (fetch CSV data)
-- **`/api/stock-analyses/[id]/favorite`**: POST (toggle favorite status)
-- **`/api/earnings/[symbol]`**: GET (fetch earnings for symbol)
-- **`/api/stock-price/[symbol]`**: GET (fetch current stock price)
+- **`/api/stock-analyses`**: GET (list), POST (create with CSV upload) - Proxies to backend
+- **`/api/stock-analyses/[id]`**: GET (single), DELETE - Proxies to backend
+- **`/api/stock-analyses/[id]/regenerate-factors`**: POST (regenerate factor analysis) - Proxies to backend
+- **`/api/stock-analyses/[id]/daily-scoring-db`**: POST (get/generate daily scoring) - Proxies to backend
+- **`/api/stock-analyses/[id]/csv-content`**: GET (fetch CSV data) - Proxies to backend
+- **`/api/stock-analyses/[id]/favorite`**: POST (toggle favorite status) - Proxies to backend
+- **`/api/earnings`**: GET (list earnings), POST (create earnings) - Proxies to backend
+- **`/api/earnings/analyze`**: POST (trigger AI analysis) - Proxies to backend
+- **`/api/earnings/[symbol]`**: GET (fetch earnings for symbol) - Proxies to backend
+- **`/api/stock-price/[symbol]`**: GET (fetch current stock price) - Proxies to backend
+- **All API routes**: Proxy requests to backend API using `serverApiRequestWithCookies()` helper
 
 ### Component Patterns
 
