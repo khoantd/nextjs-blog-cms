@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Target, Shield, Clock, AlertTriangle, Loader2, RefreshCw, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, Shield, Clock, AlertTriangle, Loader2, RefreshCw, DollarSign, Activity } from "lucide-react";
 import { formatPrice } from "@/lib/currency-utils";
 
 interface PriceRecommendations {
@@ -16,6 +16,14 @@ interface PriceRecommendations {
   targetUpside: number;
   stopLoss: number;
   timeHorizon: 'short' | 'medium' | 'long';
+  shortTermPredictions?: Array<{
+    daysAhead: number;
+    direction: 'up' | 'down' | 'flat';
+    probability: number;
+    expectedChangePercent: number;
+    confidence: 'low' | 'medium' | 'high';
+    reasoning: string;
+  }>;
   technicalIndicators: {
     support: number[];
     resistance: number[];
@@ -54,11 +62,24 @@ export function PriceRecommendations({
 
   const loadRecommendations = async () => {
     try {
-      const response = await fetch(`/api/stock-analyses/${analysisId}/price-recommendations`);
-      const data = await response.json();
+      // Price recommendations are stored in the stock analysis record
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/stock-analyses/${analysisId}`, {
+        credentials: 'include',
+      });
       
-      if (data.success && data.recommendations) {
-        setRecommendations(data.recommendations);
+      if (response.ok) {
+        const result = await response.json();
+        const stockAnalysis = result.data?.stockAnalysis;
+        
+        if (stockAnalysis?.priceRecommendations) {
+          try {
+            const recommendations = JSON.parse(stockAnalysis.priceRecommendations);
+            setRecommendations(recommendations);
+          } catch (e) {
+            console.error('Error parsing price recommendations:', e);
+          }
+        }
       }
     } catch (err) {
       console.error('Error loading price recommendations:', err);
@@ -70,7 +91,9 @@ export function PriceRecommendations({
     setError(null);
     
     try {
-      const response = await fetch(`/api/stock-analyses/${analysisId}/price-recommendations`, {
+      // Use the analyze endpoint which generates price recommendations
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/stock-analyses/${analysisId}/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -80,13 +103,16 @@ export function PriceRecommendations({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || `Failed to generate recommendations (${response.status})`);
+        throw new Error(errorData.error?.message || errorData.error || `Failed to generate recommendations (${response.status})`);
       }
 
       const result = await response.json();
       
       if (result.success) {
-        setRecommendations(result.recommendations);
+        // Reload recommendations after analysis completes
+        setTimeout(() => {
+          loadRecommendations();
+        }, 2000);
       } else {
         throw new Error('Failed to generate recommendations');
       }
@@ -304,6 +330,55 @@ export function PriceRecommendations({
             </div>
           </div>
 
+          {/* Short-Term Movement Outlook */}
+          {recommendations.shortTermPredictions && recommendations.shortTermPredictions.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Short-Term Price Outlook (Days Ahead)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {recommendations.shortTermPredictions
+                    .sort((a, b) => a.daysAhead - b.daysAhead)
+                    .map((prediction, index) => (
+                      <div
+                        key={`${prediction.daysAhead}-${index}`}
+                        className="p-3 bg-white rounded-lg border flex flex-col gap-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs text-gray-500">
+                            {prediction.daysAhead} day{prediction.daysAhead !== 1 ? 's' : ''} ahead
+                          </div>
+                          <Badge className={getConfidenceColor(prediction.confidence)}>
+                            {prediction.confidence.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {prediction.direction === 'up' && <TrendingUp className="h-4 w-4 text-green-600" />}
+                          {prediction.direction === 'down' && <TrendingDown className="h-4 w-4 text-red-600" />}
+                          {prediction.direction === 'flat' && <Activity className="h-4 w-4 text-gray-500" />}
+                          <div className="text-sm font-semibold">
+                            {prediction.direction === 'up' && 'Likely Up'}
+                            {prediction.direction === 'down' && 'Likely Down'}
+                            {prediction.direction === 'flat' && 'Likely Flat'}
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-700">
+                          Prob: {prediction.probability.toFixed(0)}% | Expected: {prediction.expectedChangePercent.toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {prediction.reasoning}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Technical Analysis */}
           <div className="grid md:grid-cols-2 gap-6">
             <Card>
@@ -317,7 +392,7 @@ export function PriceRecommendations({
                     <div className="flex flex-wrap gap-2">
                       {recommendations.technicalIndicators?.support?.map((level, index) => (
                         <Badge key={index} variant="outline" className="text-green-600 border-green-200">
-                          ${level.toFixed(2)}
+                          {formatPrice(level, symbol)}
                         </Badge>
                       )) || <span className="text-sm text-gray-500">No support levels available</span>}
                     </div>
@@ -327,7 +402,7 @@ export function PriceRecommendations({
                     <div className="flex flex-wrap gap-2">
                       {recommendations.technicalIndicators?.resistance?.map((level, index) => (
                         <Badge key={index} variant="outline" className="text-red-600 border-red-200">
-                          ${level.toFixed(2)}
+                          {formatPrice(level, symbol)}
                         </Badge>
                       )) || <span className="text-sm text-gray-500">No resistance levels available</span>}
                     </div>

@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { DailyScoreCard, DailyScoreList } from "@/components/daily-score-card";
 import { DailyPredictionCard, DailyPredictionSummary } from "@/components/daily-prediction";
 import { 
@@ -17,9 +19,12 @@ import {
   Download,
   Trash2,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import type { DailyScoreResult, StockFactor } from "@/lib/stock-factors";
+import { DEFAULT_DAILY_SCORE_CONFIG } from "@/lib/stock-factors";
 
 interface DailyScoringTabProps {
   stockAnalysisId: string;
@@ -59,6 +64,12 @@ interface DailyScoringData {
     minFactorsRequired?: number;
   };
   factorFrequency: Partial<Record<StockFactor, number>>;
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
   fromCache?: boolean;
   message?: string;
   lastUpdated?: string; // Add last updated timestamp
@@ -72,82 +83,186 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20); // Records per page
 
-  const fetchDailyScoring = async () => {
+  const [predictionSortBy, setPredictionSortBy] = useState<'date' | 'score' | 'confidence' | 'prediction'>('date');
+  const [predictionSortOrder, setPredictionSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
+
+  const fetchPredictions = async (sortBy?: string, sortOrder?: string) => {
+    try {
+      const sortByParam = sortBy || predictionSortBy;
+      const sortOrderParam = sortOrder || predictionSortOrder;
+      
+      // Use Next.js API proxy route to avoid CORS issues
+      const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/predictions?orderBy=${sortByParam}&order=${sortOrderParam}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to fetch predictions:', response.status);
+        return [];
+      }
+
+      const result = await response.json();
+      return result.data?.predictions || [];
+    } catch (err) {
+      console.warn('Error fetching predictions:', err);
+      return [];
+    }
+  };
+
+  const updatePredictions = async (newSortBy?: 'date' | 'score' | 'confidence' | 'prediction', newSortOrder?: 'asc' | 'desc') => {
+    setIsLoadingPredictions(true);
+    try {
+      const sortedPredictions = await fetchPredictions(newSortBy, newSortOrder);
+      if (data) {
+        setData({
+          ...data,
+          predictions: sortedPredictions
+        });
+      }
+    } catch (err) {
+      console.error('Error updating predictions:', err);
+      setError('Failed to update predictions');
+    } finally {
+      setIsLoadingPredictions(false);
+    }
+  };
+
+  const fetchDailyScoring = async (page: number = currentPage) => {
     setLoading(true);
     setError(null);
 
     try {
-      // First try to get existing data
-      const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/daily-scoring-db`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+      // Use Next.js API proxy route to avoid CORS issues
+      const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/daily-scores?page=${page}&limit=${pageSize}&orderBy=date&order=desc`, {
+        method: 'GET',
+        credentials: 'include',
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch daily scoring data');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error?.message || errorData.error || 'Failed to fetch daily scoring data');
       }
 
       const result = await response.json();
-
-      if (result.success) {
-        // If no data exists, try to generate it
-        if (result.data.analysis.totalDays === 0) {
-          console.log('No existing data found, generating daily scoring data...');
-          setIsGenerating(true);
-          
-          const generateResponse = await fetch(`/api/stock-analyses/${stockAnalysisId}/generate-daily-scoring`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+      
+      // Backend returns { data: { items: [...], pagination: {...} } }
+      if (result.data && result.data.items) {
+        const scores = result.data.items;
+        const pagination = result.data.pagination;
+        
+        // Transform backend format to frontend expected format
+        // Calculate summary statistics from current page data
+        // Note: For accurate overall statistics, we'd need to fetch all data or have a separate summary endpoint
+        const totalDays = pagination?.total || scores.length;
+        const highProbabilityDays = scores.filter((s: any) => s.prediction === 'HIGH_PROBABILITY' || s.aboveThreshold).length;
+        const moderateDays = scores.filter((s: any) => s.prediction === 'MODERATE').length;
+        const lowDays = scores.filter((s: any) => s.prediction === 'LOW_PROBABILITY').length;
+        
+        // Calculate score statistics from current page
+        const scoreValues = scores.map((s: any) => s.score || 0).filter((score: number) => !isNaN(score));
+        const averageScore = scoreValues.length > 0 
+          ? scoreValues.reduce((sum: number, score: number) => sum + score, 0) / scoreValues.length 
+          : 0;
+        const maxScore = scoreValues.length > 0 ? Math.max(...scoreValues) : 0;
+        const minScore = scoreValues.length > 0 ? Math.min(...scoreValues) : 0;
+        // Calculate highScorePercentage from current page (for overall stats, would need all data)
+        const highScorePercentage = scores.length > 0 ? (highProbabilityDays / scores.length) * 100 : 0;
+        
+        // Calculate factor frequency in high-score days (days that exceed threshold)
+        const factorFrequency: Record<string, number> = {};
+        const highScoreDaysList = scores.filter((s: any) => s.aboveThreshold || s.prediction === 'HIGH_PROBABILITY');
+        const totalHighScoreDays = highScoreDaysList.length;
+        
+        // Count how often each factor appears in high-score days
+        highScoreDaysList.forEach((score: any) => {
+          // Check breakdown (from DailyScoreResult calculation)
+          // Format: { [factor]: { weight: number, active: boolean, contribution: number } }
+          const breakdown = score.breakdown || {};
+          Object.keys(breakdown).forEach((factor) => {
+            const factorData = breakdown[factor];
+            // Handle breakdown format: {active: boolean, weight: number, contribution: number}
+            if (typeof factorData === 'object' && factorData !== null) {
+              if (factorData.active === true) {
+                factorFrequency[factor] = (factorFrequency[factor] || 0) + 1;
+              }
             }
           });
-
-          if (!generateResponse.ok) {
-            throw new Error('Failed to generate daily scoring data');
-          }
-
-          const generateResult = await generateResponse.json();
-          
-          if (generateResult.success) {
-            // After generating, fetch the data again
-            const newResponse = await fetch(`/api/stock-analyses/${stockAnalysisId}/daily-scoring-db`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              }
-            });
-
-            if (newResponse.ok) {
-              const newResult = await newResponse.json();
-              if (newResult.success) {
-                setData(newResult.data);
-                console.log('✅ Daily scoring data generated and loaded');
-                return;
-              }
-            }
+        });
+        
+        // Convert counts to percentages (how often factor appears in high-score days)
+        const factorFrequencyPercentages: Record<string, number> = {};
+        Object.keys(factorFrequency).forEach((factor) => {
+          if (totalHighScoreDays > 0) {
+            factorFrequencyPercentages[factor] = (factorFrequency[factor] / totalHighScoreDays) * 100;
           } else {
-            setError(generateResult.error || 'Failed to generate daily scoring data');
+            factorFrequencyPercentages[factor] = 0;
           }
-        } else {
-          setData(result.data);
-          
-          // Show message if data is from cache or if no data exists
-          if (result.data.message) {
-            if (result.data.fromCache) {
-              console.log('✅ Data loaded from database cache');
-            } else {
-              console.log('ℹ️ No existing data found in database');
-            }
-          }
+        });
+        
+        // Fetch predictions in parallel with current sort settings
+        const predictions = await fetchPredictions();
+        
+        const transformedData = {
+          analysis: {
+            totalDays,
+            highScoreDays: highProbabilityDays,
+            highScorePercentage,
+            averageScore,
+            maxScore,
+            minScore,
+          },
+          dailyScores: scores,
+          predictions: predictions, // Fetch predictions from API
+          scoreConfig: {
+            threshold: DEFAULT_DAILY_SCORE_CONFIG.threshold,
+            weights: DEFAULT_DAILY_SCORE_CONFIG.weights,
+            minFactorsRequired: DEFAULT_DAILY_SCORE_CONFIG.minFactorsRequired,
+          },
+          factorFrequency: factorFrequencyPercentages,
+          pagination: pagination ? {
+            total: pagination.total,
+            page: pagination.page,
+            limit: pagination.limit,
+            totalPages: pagination.totalPages,
+          } : undefined,
+        };
+        
+        setData(transformedData);
+        setCurrentPage(page);
+        console.log(`✅ Loaded ${scores.length} daily scores from backend (page ${page}/${pagination?.totalPages || 1})`);
+        if (predictions.length > 0) {
+          console.log(`✅ Loaded ${predictions.length} predictions`);
         }
       } else {
-        setError(result.error || 'Failed to load daily scoring data');
+        // Still try to fetch predictions even if no scores
+        const predictions = await fetchPredictions();
+        setData({
+          analysis: {
+            totalDays: 0,
+            highScoreDays: 0,
+            highScorePercentage: 0,
+            averageScore: 0,
+            maxScore: 0,
+            minScore: 0,
+          },
+          dailyScores: [],
+          predictions: predictions,
+          scoreConfig: {
+            threshold: DEFAULT_DAILY_SCORE_CONFIG.threshold,
+            weights: DEFAULT_DAILY_SCORE_CONFIG.weights,
+            minFactorsRequired: DEFAULT_DAILY_SCORE_CONFIG.minFactorsRequired,
+          },
+          factorFrequency: {},
+        });
+        console.log('ℹ️ No daily scoring data available');
       }
     } catch (err) {
-      setError('Network error occurred');
+      setError(err instanceof Error ? err.message : 'Network error occurred');
     } finally {
       setLoading(false);
       setIsGenerating(false);
@@ -155,8 +270,14 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
   };
 
   useEffect(() => {
-    fetchDailyScoring();
+    fetchDailyScoring(1);
   }, [stockAnalysisId]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && (!data?.pagination || newPage <= data.pagination.totalPages)) {
+      fetchDailyScoring(newPage);
+    }
+  };
 
   const handleExportData = () => {
     if (!data) return;
@@ -188,11 +309,13 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
     setError(null);
 
     try {
-      const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/regenerate-daily-scoring`, {
+      // Use Next.js API proxy route to avoid CORS issues
+      const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -201,7 +324,7 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
         if (response.status === 429) {
           setError(errorData.message || 'Rate limit exceeded. Please wait before regenerating again.');
         } else {
-          setError(errorData.error || 'Failed to regenerate daily scoring data');
+          setError(errorData.error?.message || errorData.error || 'Failed to regenerate daily scoring data');
         }
         return;
       }
@@ -209,10 +332,12 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
       const result = await response.json();
       
       if (result.success) {
-        // After regenerating, fetch the updated data
-        await fetchDailyScoring();
+        // After regenerating, fetch the updated data with a delay
+        setTimeout(() => {
+          fetchDailyScoring();
+        }, 2000);
         setShowRegenerateConfirm(false);
-        console.log('✅ Daily scoring data regenerated successfully');
+        console.log('✅ Daily scoring data regeneration initiated');
       } else {
         setError(result.error || 'Failed to regenerate daily scoring data');
       }
@@ -264,7 +389,7 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={fetchDailyScoring} variant="outline">
+            <Button onClick={() => fetchDailyScoring(currentPage)} variant="outline">
               <RefreshCw className="h-4 w-4 mr-2" />
               Retry
             </Button>
@@ -323,7 +448,7 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
             <Trash2 className="h-4 w-4 mr-2" />
             Regenerate
           </Button>
-          <Button onClick={fetchDailyScoring} variant="outline" size="sm">
+          <Button onClick={() => fetchDailyScoring(currentPage)} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -495,19 +620,162 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
 
         <TabsContent value="scores" className="space-y-4">
           <DailyScoreList 
-            scores={data.dailyScores.slice(0, 10)} 
+            scores={data.dailyScores} 
             showDetails={true}
             compact={false}
           />
+          
+          {/* Pagination Controls */}
+          {data.pagination && data.pagination.totalPages > 1 && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {((data.pagination.page - 1) * data.pagination.limit) + 1} to{' '}
+                    {Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)} of{' '}
+                    {data.pagination.total} records
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(data.pagination!.page - 1)}
+                      disabled={data.pagination.page === 1 || loading}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, data.pagination.totalPages) }, (_, i) => {
+                        let pageNum: number;
+                        if (data.pagination!.totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (data.pagination!.page <= 3) {
+                          pageNum = i + 1;
+                        } else if (data.pagination!.page >= data.pagination!.totalPages - 2) {
+                          pageNum = data.pagination!.totalPages - 4 + i;
+                        } else {
+                          pageNum = data.pagination!.page - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={data.pagination!.page === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(pageNum)}
+                            disabled={loading}
+                            className="min-w-[40px]"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(data.pagination!.page + 1)}
+                      disabled={data.pagination.page === data.pagination.totalPages || loading}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="predictions" className="space-y-4">
           {data.predictions.length > 0 ? (
-            <div className="space-y-4">
-              {data.predictions.slice(0, 5).map((prediction, index) => (
-                <DailyPredictionCard key={index} {...prediction} />
-              ))}
-            </div>
+            <>
+              {/* Sorting Controls */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="prediction-sort-by">Sort by:</Label>
+                      <Select
+                        value={predictionSortBy}
+                        onValueChange={(value: 'date' | 'score' | 'confidence' | 'prediction') => {
+                          setPredictionSortBy(value);
+                          // Refetch predictions with new sort
+                          updatePredictions(value, predictionSortOrder);
+                        }}
+                        disabled={isLoadingPredictions}
+                      >
+                        <SelectTrigger id="prediction-sort-by" className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="date">Date</SelectItem>
+                          <SelectItem value="score">Score</SelectItem>
+                          <SelectItem value="confidence">Confidence</SelectItem>
+                          <SelectItem value="prediction">Prediction Level</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="prediction-sort-order">Order:</Label>
+                      <Select
+                        value={predictionSortOrder}
+                        onValueChange={(value: 'asc' | 'desc') => {
+                          setPredictionSortOrder(value);
+                          // Refetch predictions with new sort
+                          updatePredictions(predictionSortBy, value);
+                        }}
+                        disabled={isLoadingPredictions}
+                      >
+                        <SelectTrigger id="prediction-sort-order" className="w-[120px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="desc">Descending</SelectItem>
+                          <SelectItem value="asc">Ascending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updatePredictions()}
+                      disabled={isLoadingPredictions}
+                    >
+                      {isLoadingPredictions ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Refresh
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Predictions List */}
+              {isLoadingPredictions ? (
+                <Card>
+                  <CardContent className="flex items-center justify-center py-8">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Loading predictions...</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {data.predictions.map((prediction, index) => (
+                    <DailyPredictionCard key={`${prediction.date}-${index}`} {...prediction} />
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <Card>
               <CardContent className="flex items-center justify-center py-8">

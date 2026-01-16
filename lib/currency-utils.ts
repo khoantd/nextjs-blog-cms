@@ -19,16 +19,19 @@ export function isVietnameseStock(symbol: string): boolean {
 
 /**
  * Format price based on stock symbol (Vietnamese stocks use VND, others use USD)
+ * For Vietnamese stocks, multiplies by 1000 as API returns prices in thousands
  */
 export function formatPrice(price: number, symbol: string): string {
   if (isVietnameseStock(symbol)) {
-    // Vietnamese currency formatting
+    // Vietnamese currency formatting - multiply by 1000 (API returns in thousands)
+    // Show up to 2 decimal places, but don't force trailing zeros
+    const priceInVND = price * 1000;
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
+      maximumFractionDigits: 2,
+    }).format(priceInVND);
   } else {
     // US currency formatting
     return new Intl.NumberFormat('en-US', {

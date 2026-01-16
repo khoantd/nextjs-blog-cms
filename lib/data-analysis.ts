@@ -1,3 +1,17 @@
+/**
+ * ⚠️ BACKEND-ONLY FILE ⚠️
+ * 
+ * This file uses Node.js filesystem APIs (fs.readFileSync) and should ONLY be used
+ * in the backend server (nextjs-blog-backend), NOT in the Next.js frontend app.
+ * 
+ * For Next.js app, use backend API endpoints instead:
+ * - GET /api/stock-analyses/:id/daily-factor-data - Get factor data from database
+ * - GET /api/stock-analyses/:id/daily-scores - Get scoring data from database
+ * - POST /api/stock-analyses/:id/upload - Upload CSV files (forwards to backend)
+ * 
+ * DO NOT import this file in Next.js API routes or components.
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 

@@ -11,6 +11,8 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=file:./data/dev.db
+      - NEXT_PUBLIC_API_URL=http://72.60.233.159:3050
+      - NEXT_PUBLIC_VNSTOCK_API_URL=http://72.60.233.159:8002
     volumes:
       - .:/app  # Mount entire project for live development
       - /app/node_modules  # Avoid overwriting node_modules

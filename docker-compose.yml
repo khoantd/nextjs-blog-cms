@@ -10,6 +10,8 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:./data/dev.db
+      - NEXT_PUBLIC_API_URL=http://72.60.233.159:3050
+      - NEXT_PUBLIC_VNSTOCK_API_URL=http://72.60.233.159:8002
     volumes:
       - ./data:/app/data  # Persist database file
       - ./uploads:/app/uploads  # Persist uploaded files

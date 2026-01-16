@@ -13,10 +13,12 @@ export default function EarningsTestPage() {
     setError('');
     
     try {
-      const response = await fetch('/api/earnings/fetch', {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/earnings/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols: [symbol] }),
+        credentials: 'include',
       });
       
       const data = await response.json();
@@ -33,10 +35,12 @@ export default function EarningsTestPage() {
     setError('');
     
     try {
-      const response = await fetch('/api/earnings/analyze', {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/earnings/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols: [symbol] }),
+        credentials: 'include',
       });
       
       const data = await response.json();
@@ -53,7 +57,10 @@ export default function EarningsTestPage() {
     setError('');
     
     try {
-      const response = await fetch(`/api/earnings/${symbol}`);
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/earnings/${symbol}`, {
+        credentials: 'include',
+      });
       const data = await response.json();
       setResults(data);
     } catch (err) {

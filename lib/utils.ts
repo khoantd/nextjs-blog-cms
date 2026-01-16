@@ -29,10 +29,23 @@ export type FetcherArgs = [string, RequestInit?];
 
 // Type-safe fetcher function
 export const fetcher = async <T = unknown>(...args: FetcherArgs): Promise<T> => {
-  const response = await fetch(...args);
+  const [url, options] = args;
+  
+  // If it's a relative URL, use the backend API (defaults to remote backend)
+  const fullUrl = url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_API_URL || 'http://72.60.233.159:3050'}${url.startsWith('/') ? url : '/' + url}`;
+  
+  const response = await fetch(fullUrl, {
+    ...options,
+    credentials: 'include', // For cookies/auth
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
   
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `HTTP ${response.status}: ${response.statusText}`);
   }
   
   return response.json() as Promise<T>;

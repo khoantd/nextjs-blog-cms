@@ -24,13 +24,6 @@ export default withAuth(
         if (req.nextUrl.pathname.startsWith("/auth/")) {
           return true;
         }
-        // Allow public access to blog posts
-        if (req.nextUrl.pathname.startsWith("/blog-post/")) {
-          return true;
-        }
-        if (req.nextUrl.pathname.startsWith("/blog-posts")) {
-          return true;
-        }
         // Require authentication for all other pages
         return !!token;
       },
@@ -53,6 +46,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!api/auth|api/debug|api/inngest|_next/static|_next/image|favicon.ico|.*\\.png$).*)",
+    "/((?!api/auth|api/debug|_next/static|_next/image|favicon.ico|.*\\.png$).*)",
   ],
 };

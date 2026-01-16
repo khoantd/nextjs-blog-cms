@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Brain, BarChart3, RefreshCw, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { FactorRepetitionStats } from "@/components/factor-repetition-stats";
+import { formatPrice } from "@/lib/currency-utils";
 
 interface FactorData {
   Tx: number;
@@ -61,22 +62,41 @@ export function StockFactorTableBackend({
   // Fetch technical indicators data
   const fetchTechnicalIndicators = async () => {
     try {
-      const response = await fetch(`/api/stock-analyses/${analysisId}/daily-scoring-db`, {
+      // Use Next.js API proxy route to avoid CORS issues - fetch all records
+      const response = await fetch(`/api/stock-analyses/${analysisId}/daily-factor-data?page=1&limit=0`, {
         method: "GET",
         credentials: "include",
       });
 
       if (response.ok) {
         const result = await response.json();
-        if (result.success && result.data?.factorData) {
+        
+        // Handle different response structures
+        let items: any[] = [];
+        if (result.data) {
+          // Check if data is an array directly
+          if (Array.isArray(result.data)) {
+            items = result.data;
+          } 
+          // Check if data has items property
+          else if (result.data.items && Array.isArray(result.data.items)) {
+            items = result.data.items;
+          }
+          // Check if data has data property (nested structure)
+          else if (result.data.data && Array.isArray(result.data.data)) {
+            items = result.data.data;
+          }
+        }
+        
+        if (items.length > 0) {
           const indicatorsMap: Record<string, TechnicalIndicators> = {};
-          result.data.factorData.forEach((data: any) => {
-            indicatorsMap[data.date] = {
+          items.forEach((data: any) => {
+            indicatorsMap[data.Date] = {
               ma20: data.ma20,
               ma50: data.ma50,
               ma200: data.ma200,
               rsi: data.rsi,
-              volume: data.volume,
+              volume: data.Volume || data.volume,
             };
           });
           setTechnicalIndicators(indicatorsMap);
@@ -87,13 +107,32 @@ export function StockFactorTableBackend({
     }
   };
 
+  // Helper function to convert boolean/number factors to consistent number format
+  const normalizeFactorValue = (value: boolean | number | null | undefined): number | null => {
+    if (value === true) return 1;
+    if (value === false) return 0;
+    if (value === 1) return 1;
+    if (value === 0) return 0;
+    return null;
+  };
+
+  // Helper function to check if a factor is active (handles both boolean and number)
+  const isFactorActive = (value: unknown): boolean => {
+    return value === true || value === 1;
+  };
+
+  // Helper function to get factor value with proper typing
+  const getFactorValue = (factor: any, factorName: string): number | boolean | null | undefined => {
+    return factor[factorName];
+  };
+
   // Helper functions for enhanced factor data
-  const calculateConfidence = (factor: FactorData): number => {
+  const calculateConfidence = (factor: FactorData | any): number => {
     const technicalFactors = ['volume_spike', 'break_ma50', 'break_ma200', 'rsi_over_60'];
     const aiFactors = ['market_up', 'sector_up', 'earnings_window', 'news_positive', 'short_covering', 'macro_tailwind'];
     
-    const technicalCount = technicalFactors.filter(f => factor[f as keyof FactorData] === 1).length;
-    const aiCount = aiFactors.filter(f => factor[f as keyof FactorData] === 1).length;
+    const technicalCount = technicalFactors.filter(f => isFactorActive(getFactorValue(factor, f))).length;
+    const aiCount = aiFactors.filter(f => isFactorActive(getFactorValue(factor, f))).length;
     const totalFactors = technicalCount + aiCount;
     
     // Higher confidence for more factors and technical indicators
@@ -104,12 +143,12 @@ export function StockFactorTableBackend({
     return 95;
   };
 
-  const getDataSource = (factor: FactorData): 'calculated' | 'ai' | 'hybrid' => {
+  const getDataSource = (factor: FactorData | any): 'calculated' | 'ai' | 'hybrid' => {
     const technicalFactors = ['volume_spike', 'break_ma50', 'break_ma200', 'rsi_over_60'];
     const aiFactors = ['market_up', 'sector_up', 'earnings_window', 'news_positive', 'short_covering', 'macro_tailwind'];
     
-    const hasTechnical = technicalFactors.some(f => factor[f as keyof FactorData] === 1);
-    const hasAI = aiFactors.some(f => factor[f as keyof FactorData] === 1);
+    const hasTechnical = technicalFactors.some(f => isFactorActive(getFactorValue(factor, f)));
+    const hasAI = aiFactors.some(f => isFactorActive(getFactorValue(factor, f)));
     
     if (hasTechnical && hasAI) return 'hybrid';
     if (hasTechnical) return 'calculated';
@@ -124,30 +163,78 @@ export function StockFactorTableBackend({
       setError(null);
 
       try {
-        const response = await fetch(`/api/stock-analyses/${analysisId}/factor-table`, {
+        // Use Next.js API proxy route to avoid CORS issues - fetch all records by using limit=0
+        const response = await fetch(`/api/stock-analyses/${analysisId}/daily-factor-data?page=1&limit=0`, {
           method: "GET",
           credentials: "include",
         });
 
         if (response.ok) {
           const result = await response.json();
-          if (result.success && result.data) {
-            // Enhance factor data with technical indicators and metadata
-            const enhancedData: EnhancedFactorData[] = result.data.map((factor: FactorData) => ({
-              ...factor,
+          
+          // Handle different response structures
+          let items: any[] = [];
+          if (result.data) {
+            // Check if data is an array directly
+            if (Array.isArray(result.data)) {
+              items = result.data;
+            } 
+            // Check if data has items property
+            else if (result.data.items && Array.isArray(result.data.items)) {
+              items = result.data.items;
+            }
+            // Check if data has data property (nested structure)
+            else if (result.data.data && Array.isArray(result.data.data)) {
+              items = result.data.data;
+            }
+          }
+          
+          if (items.length > 0) {
+            // Transform backend format to frontend expected format
+            const enhancedData: EnhancedFactorData[] = items.map((factor: any, index: number) => ({
+              Tx: index + 1,
+              Date: factor.Date,
+              Close: factor.Close || factor.close,
+              pctChange: factor.pctChange || factor.pct_change || 0,
+              volume_spike: normalizeFactorValue(factor.volume_spike) ?? 0,
+              break_ma50: normalizeFactorValue(factor.break_ma50) ?? 0,
+              break_ma200: normalizeFactorValue(factor.break_ma200) ?? 0,
+              rsi_over_60: normalizeFactorValue(factor.rsi_over_60) ?? 0,
+              market_up: normalizeFactorValue(factor.market_up),
+              sector_up: normalizeFactorValue(factor.sector_up),
+              earnings_window: normalizeFactorValue(factor.earnings_window),
+              news_positive: normalizeFactorValue(factor.news_positive),
+              short_covering: normalizeFactorValue(factor.short_covering),
+              macro_tailwind: normalizeFactorValue(factor.macro_tailwind),
               technicalIndicators: technicalIndicators[factor.Date] || {},
-              confidence: calculateConfidence(factor),
-              dataSource: getDataSource(factor)
+              confidence: calculateConfidence(factor as FactorData),
+              dataSource: getDataSource(factor as FactorData)
             }));
             setFactorData(enhancedData);
             setIsGenerated(true);
-            console.log(`Loaded ${result.data.length} existing factor records from database`);
+            console.log(`Loaded ${enhancedData.length} existing factor records from database`);
+            // Debug: Log factor counts for troubleshooting
+            const factorCounts = enhancedData.reduce((acc, row) => {
+              ['volume_spike', 'break_ma50', 'break_ma200', 'rsi_over_60', 
+               'market_up', 'sector_up', 'earnings_window', 'news_positive', 
+               'short_covering', 'macro_tailwind'].forEach(factor => {
+                const value = (row as any)[factor] as number | boolean | null | undefined;
+                // Handle both boolean (true) and number (1) formats
+                if (value === true || value === 1) {
+                  acc[factor] = (acc[factor] || 0) + 1;
+                }
+              });
+              return acc;
+            }, {} as Record<string, number>);
+            console.log('Factor counts:', factorCounts);
+          } else {
+            console.log('No existing factor data found, ready to generate');
           }
         } else if (response.status === 404) {
           // No existing data found, that's okay - show generate button
           console.log('No existing factor data found, ready to generate');
         } else {
-          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
           console.error('Error loading existing data:', errorData);
           // Don't show error to user for 404, just log it
         }
@@ -191,7 +278,9 @@ export function StockFactorTableBackend({
         }
       }, 800);
 
-      const response = await fetch(`/api/stock-analyses/${analysisId}/regenerate-factors`, {
+      // Use the analyze endpoint which regenerates factors
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/stock-analyses/${analysisId}/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -211,19 +300,95 @@ export function StockFactorTableBackend({
 
       const result = await response.json();
       
-      if (result.success && result.data) {
-        // Enhance factor data with technical indicators and metadata
-        const enhancedData: EnhancedFactorData[] = result.data.map((factor: FactorData) => ({
-          ...factor,
-          technicalIndicators: technicalIndicators[factor.Date] || {},
-          confidence: calculateConfidence(factor),
-          dataSource: getDataSource(factor)
-        }));
-        setFactorData(enhancedData);
-        setIsGenerated(true);
-        setGenerationStep("Successfully generated factor table!");
+      if (result.success) {
+        // Analysis completed successfully, now reload factor data from database
+        // Wait a moment for the database to be fully updated
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Refresh technical indicators first
+        await fetchTechnicalIndicators();
+        
+        // Reload factor data from the database using Next.js API proxy route - fetch all records
+        const dataResponse = await fetch(`/api/stock-analyses/${analysisId}/daily-factor-data?page=1&limit=0`, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        if (dataResponse.ok) {
+          const dataResult = await dataResponse.json();
+          
+          // Handle different response structures
+          let items: any[] = [];
+          if (dataResult.data) {
+            // Check if data is an array directly
+            if (Array.isArray(dataResult.data)) {
+              items = dataResult.data;
+            } 
+            // Check if data has items property
+            else if (dataResult.data.items && Array.isArray(dataResult.data.items)) {
+              items = dataResult.data.items;
+            }
+            // Check if data has data property (nested structure)
+            else if (dataResult.data.data && Array.isArray(dataResult.data.data)) {
+              items = dataResult.data.data;
+            }
+          }
+          
+          if (items.length > 0) {
+            // Transform backend format to frontend expected format
+            const enhancedData: EnhancedFactorData[] = items.map((factor: any, index: number) => ({
+              Tx: index + 1,
+              Date: factor.Date,
+              Close: factor.Close || factor.close,
+              pctChange: factor.pctChange || factor.pct_change || 0,
+              volume_spike: normalizeFactorValue(factor.volume_spike) ?? 0,
+              break_ma50: normalizeFactorValue(factor.break_ma50) ?? 0,
+              break_ma200: normalizeFactorValue(factor.break_ma200) ?? 0,
+              rsi_over_60: normalizeFactorValue(factor.rsi_over_60) ?? 0,
+              market_up: normalizeFactorValue(factor.market_up),
+              sector_up: normalizeFactorValue(factor.sector_up),
+              earnings_window: normalizeFactorValue(factor.earnings_window),
+              news_positive: normalizeFactorValue(factor.news_positive),
+              short_covering: normalizeFactorValue(factor.short_covering),
+              macro_tailwind: normalizeFactorValue(factor.macro_tailwind),
+              technicalIndicators: technicalIndicators[factor.Date] || {},
+              confidence: calculateConfidence(factor as FactorData),
+              dataSource: getDataSource(factor as FactorData)
+            }));
+            setFactorData(enhancedData);
+            setIsGenerated(true);
+            setGenerationStep("Successfully generated factor table!");
+            console.log(`Loaded ${enhancedData.length} factor records after regeneration`);
+            // Debug: Log factor counts for troubleshooting
+            const factorCounts = enhancedData.reduce((acc, row) => {
+              ['volume_spike', 'break_ma50', 'break_ma200', 'rsi_over_60', 
+               'market_up', 'sector_up', 'earnings_window', 'news_positive', 
+               'short_covering', 'macro_tailwind'].forEach(factor => {
+                const value = (row as any)[factor] as number | boolean | null | undefined;
+                // Handle both boolean (true) and number (1) formats
+                if (value === true || value === 1) {
+                  acc[factor] = (acc[factor] || 0) + 1;
+                }
+              });
+              return acc;
+            }, {} as Record<string, number>);
+            console.log('Factor counts:', factorCounts);
+          } else {
+            // Log the actual response structure for debugging
+            console.error('No factor data items found. Response structure:', {
+              hasData: !!dataResult.data,
+              dataType: typeof dataResult.data,
+              isArray: Array.isArray(dataResult.data),
+              dataKeys: dataResult.data ? Object.keys(dataResult.data) : [],
+              fullResponse: dataResult
+            });
+            throw new Error('Factor generation completed but no data was returned. Please check the console for response structure details.');
+          }
+        } else {
+          throw new Error('Failed to load generated factor data');
+        }
       } else {
-        throw new Error('Failed to generate factor table');
+        throw new Error(result.error || 'Failed to generate factor table');
       }
     } catch (err) {
       console.error('Error generating factor table:', err);
@@ -384,7 +549,7 @@ export function StockFactorTableBackend({
 
         {/* Enhanced Error State */}
         {error && (
-          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <div className="p-4 bg-destructive/20 border border-destructive/30 rounded-lg">
             <div className="flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
               <div className="space-y-2">
@@ -532,10 +697,10 @@ export function StockFactorTableBackend({
                           <TableCell className="text-center">
                             <div className="text-xs space-y-1">
                               {factor.technicalIndicators?.ma20 && (
-                                <div>MA20: ${factor.technicalIndicators.ma20.toFixed(2)}</div>
+                                <div>MA20: {formatPrice(factor.technicalIndicators.ma20, symbol)}</div>
                               )}
                               {factor.technicalIndicators?.ma50 && (
-                                <div>MA50: ${factor.technicalIndicators.ma50.toFixed(2)}</div>
+                                <div>MA50: {formatPrice(factor.technicalIndicators.ma50, symbol)}</div>
                               )}
                               {factor.technicalIndicators?.rsi && (
                                 <div>RSI: {factor.technicalIndicators.rsi.toFixed(1)}</div>

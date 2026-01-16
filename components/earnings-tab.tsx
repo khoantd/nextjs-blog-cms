@@ -46,13 +46,23 @@ export function EarningsTab({ symbol }: EarningsTabProps) {
     setError('');
     
     try {
-      const response = await fetch(`/api/earnings/${symbol}`);
-      const data = await response.json();
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      // Use the new /api/earnings/:symbol endpoint
+      const response = await fetch(`${baseUrl}/api/earnings/${symbol}`, {
+        credentials: 'include',
+      });
       
-      if (data.success) {
-        setEarnings(data.data);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error?.message || errorData.error || `Failed to fetch: ${response.status}`);
+      }
+
+      const result = await response.json();
+      // Backend returns { data: [...] } for symbol-specific endpoint
+      if (result.data && Array.isArray(result.data)) {
+        setEarnings(result.data);
       } else {
-        setError(data.message || 'Failed to fetch earnings data');
+        setEarnings([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch earnings');
@@ -66,17 +76,27 @@ export function EarningsTab({ symbol }: EarningsTabProps) {
     setError('');
     
     try {
-      const response = await fetch('/api/earnings/fetch', {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/earnings/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols: [symbol] }),
+        credentials: 'include',
       });
       
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error?.message || errorData.error || `Failed to sync: ${response.status}`);
+      }
+
       const data = await response.json();
       
-      if (data.success) {
-        // Refresh earnings data after fetching
-        await fetchEarnings();
+      if (data.message || response.status === 202) {
+        // Backend returns 202 Accepted for async operations
+        // Refresh earnings data after a short delay
+        setTimeout(() => {
+          fetchEarnings();
+        }, 2000);
       } else {
         setError(data.error || 'Failed to fetch earnings data');
       }
@@ -91,19 +111,29 @@ export function EarningsTab({ symbol }: EarningsTabProps) {
     setAnalyzing(true);
     
     try {
-      const response = await fetch('/api/earnings/analyze', {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/earnings/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols: [symbol] }),
+        credentials: 'include',
       });
       
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error?.message || errorData.error || `Failed to analyze: ${response.status}`);
+      }
+
       const data = await response.json();
       
-      if (data.success) {
-        // Refresh earnings data after analysis
-        await fetchEarnings();
+      if (data.message || response.status === 202) {
+        // Backend returns 202 Accepted for async operations
+        // Refresh earnings data after a short delay
+        setTimeout(() => {
+          fetchEarnings();
+        }, 2000);
       } else {
-        setError(data.message || 'Failed to analyze earnings');
+        setError(data.error || 'Failed to analyze earnings');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze earnings');

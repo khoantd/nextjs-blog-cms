@@ -24,6 +24,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Accept build arguments for Next.js public environment variables
+ARG NEXT_PUBLIC_API_URL=http://72.60.233.159:3050
+ARG NEXT_PUBLIC_VNSTOCK_API_URL=http://72.60.233.159:8002
+
+# Set build-time environment variables
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_VNSTOCK_API_URL=$NEXT_PUBLIC_VNSTOCK_API_URL
+
 # Generate Prisma client
 RUN npx prisma generate
 
@@ -66,6 +74,11 @@ EXPOSE 3000
 
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
+
+# Runtime environment variables (defaults, can be overridden via docker-compose or runtime)
+# Note: NEXT_PUBLIC_* vars are embedded at build time, but these defaults allow runtime override
+ENV NEXT_PUBLIC_API_URL=http://72.60.233.159:3050
+ENV NEXT_PUBLIC_VNSTOCK_API_URL=http://72.60.233.159:8002
 
 # Start the application
 CMD ["node", "server.js"]

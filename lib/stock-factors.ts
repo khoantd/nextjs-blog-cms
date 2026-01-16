@@ -13,7 +13,8 @@ export type StockFactor =
   | "rsi_over_60"        // RSI > 60
   | "news_positive"      // Positive news sentiment
   | "short_covering"     // High short interest + price increase
-  | "macro_tailwind";    // CPI/Fed/Rate favorable conditions
+  | "macro_tailwind"     // CPI/Fed/Rate favorable conditions
+  | "strong_move";       // Significant price increase (>= 4%)
 
 export const STOCK_FACTORS: readonly StockFactor[] = [
   "market_up",
@@ -25,7 +26,8 @@ export const STOCK_FACTORS: readonly StockFactor[] = [
   "rsi_over_60",
   "news_positive",
   "short_covering",
-  "macro_tailwind"
+  "macro_tailwind",
+  "strong_move"
 ] as const;
 
 export interface FactorDescription {
@@ -95,6 +97,12 @@ export const FACTOR_DESCRIPTIONS: Record<StockFactor, FactorDescription> = {
     name: "Macro Tailwind",
     description: "Favorable CPI/Fed/interest rate environment",
     category: "fundamental"
+  },
+  strong_move: {
+    factor: "strong_move",
+    name: "Strong Move",
+    description: "Significant price increase of 4% or more",
+    category: "technical"
   }
 };
 
@@ -186,13 +194,26 @@ export function analyzeFactors(
     newsData?: Array<{ date: string; sentiment: 'positive' | 'negative' | 'neutral' }>;
     shortInterest?: number;
     macroEvents?: Array<{ date: string; favorable: boolean }>;
+    startDate?: string;
+    endDate?: string;
   } = {}
 ): FactorAnalysis[] {
   const analyses: FactorAnalysis[] = [];
 
-  // Calculate technical indicators
-  const closePrices = stockData.map(d => d.Close);
-  const volumes = stockData.map(d => d.Volume || 0);
+  // Filter data by date range if provided
+  let filteredStockData = stockData;
+  if (options.startDate || options.endDate) {
+    filteredStockData = stockData.filter(data => {
+      const dataDate = new Date(data.Date);
+      const start = options.startDate ? new Date(options.startDate) : new Date('1900-01-01');
+      const end = options.endDate ? new Date(options.endDate) : new Date('2100-12-31');
+      return dataDate >= start && dataDate <= end;
+    });
+  }
+
+  // Calculate technical indicators on filtered data
+  const closePrices = filteredStockData.map(d => d.Close);
+  const volumes = filteredStockData.map(d => d.Volume || 0);
 
   const ma20 = calculateMA(closePrices, 20);
   const ma50 = calculateMA(closePrices, 50);
@@ -200,7 +221,7 @@ export function analyzeFactors(
   const rsi = calculateRSI(closePrices);
   const volumeMA20 = calculateMA(volumes, 20);
 
-  stockData.forEach((data, index) => {
+  filteredStockData.forEach((data, index) => {
     const factors: Partial<Record<StockFactor, boolean>> = {};
     const date = new Date(data.Date).toISOString().split('T')[0];
 
@@ -350,7 +371,8 @@ export const DEFAULT_DAILY_SCORE_CONFIG: DailyScoreConfig = {
     break_ma200: 0.05,
     news_positive: 0.02,
     short_covering: 0.03,
-    macro_tailwind: 0.02
+    macro_tailwind: 0.02,
+    strong_move: 0.05
   },
   threshold: 0.45, // 45% threshold for high probability of strong movement
   minFactorsRequired: 2
@@ -492,6 +514,9 @@ export function predictStrongMovement(
   }
   if (currentFactors.rsi_over_60) {
     recommendations.push("Watch for potential overbought conditions");
+  }
+  if (currentFactors.strong_move) {
+    recommendations.push("Monitor for sustained momentum or potential reversal");
   }
 
   return {

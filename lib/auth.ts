@@ -1,13 +1,9 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import { prisma } from "./prisma";
 import { UserRole } from "./types";
 import { getGoogleClientId, getGoogleClientSecret } from "./server-auth";
+import { API_CONFIG } from "./api-config";
 
-
-// Type assertion for PrismaAdapter compatibility
-const prismaClient = prisma as any;
 
 if (process.env.NODE_ENV === "development") {
   const clientId = getGoogleClientId();
@@ -37,7 +33,6 @@ if (process.env.NODE_ENV === "development") {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: getGoogleClientId() || process.env.GOOGLE_CLIENT_ID!,
@@ -54,54 +49,106 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, account }) {
-      // Persist the user role and ID to the token
-      if (user && account) {
-        // First time sign-in, fetch user from database and assign/update role
+      // Get user email (from new sign-in or existing token)
+      const userEmail = user?.email || token.email;
+      
+      // Always refresh role from backend database to ensure it's up-to-date
+      // This handles role changes without requiring re-authentication
+      if (userEmail) {
+        let role: UserRole = token.role || "viewer"; // Use existing role as fallback
+        
         try {
-          if (!prismaClient?.user) {
-            console.error('Prisma client or user model not available');
-            return token;
-          }
+          // Use API_CONFIG for consistent backend URL
+          const backendUrl = API_CONFIG.BASE_URL;
+          const url = `${backendUrl}/api/users/by-email?email=${encodeURIComponent(userEmail)}`;
+          console.log(`[Auth] Fetching role from backend: ${url}`);
           
-          // Determine role based on email domain or admin configuration
+          // Add timeout to prevent hanging requests
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+          
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+            // Add cache control to prevent stale data
+            cache: 'no-store',
+          });
+          
+          clearTimeout(timeoutId);
+          console.log(`[Auth] Backend response status: ${response.status} for ${userEmail}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`[Auth] Backend response data:`, JSON.stringify(data));
+            if (data.data?.role && ['viewer', 'editor', 'admin'].includes(data.data.role)) {
+              role = data.data.role as UserRole;
+              console.log(`[Auth] ✅ User role from database: ${role} for ${userEmail}`);
+            } else {
+              console.log(`[Auth] ⚠️ Invalid role in response: ${data.data?.role}`);
+            }
+          } else if (response.status === 404) {
+            // User not found in database, will use environment variable fallback
+            // Note: Backend should auto-create users, so 404 might indicate backend issue
+            console.log(`[Auth] ⚠️ User not found in database (404), using environment variable check for ${userEmail}`);
+          } else {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.log(`[Auth] ⚠️ Backend error (${response.status}): ${errorText}`);
+          }
+        } catch (error: any) {
+          // If backend is not available, keep existing role or fall back to environment variable check
+          const errorMessage = error?.message || String(error);
+          const isTimeout = error?.name === 'AbortError' || errorMessage.includes('timeout');
+          const isNetworkError = errorMessage.includes('fetch failed') || 
+                                 errorMessage.includes('ECONNREFUSED') ||
+                                 errorMessage.includes('ENOTFOUND');
+          
+          if (isTimeout) {
+            console.warn(`[Auth] ⚠️ Backend request timeout for ${userEmail}, using cached role: ${role}`);
+            console.warn(`[Auth] 💡 Backend URL: ${API_CONFIG.BASE_URL}`);
+          } else if (isNetworkError) {
+            console.warn(`[Auth] ⚠️ Backend not reachable for ${userEmail} (${errorMessage}), using cached role: ${role}`);
+            console.warn(`[Auth] 💡 Check if backend server is running at ${API_CONFIG.BASE_URL}`);
+            console.warn(`[Auth] 💡 Verify NEXT_PUBLIC_API_URL is set correctly in .env.local`);
+          } else {
+            console.error(`[Auth] ❌ Backend error for ${userEmail}:`, errorMessage);
+          }
+          // Continue with existing role - don't throw error, just log warning
+        }
+        
+        // Fallback: Check environment variables if database lookup failed or returned viewer
+        if (role === "viewer" && userEmail) {
           const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
           const adminDomains = process.env.ADMIN_DOMAINS?.split(',').map(domain => domain.trim()) || [];
           
-          const isAdmin = user.email && (
-            adminEmails.includes(user.email) || 
-            adminDomains.some(domain => user.email!.endsWith(`@${domain}`)) ||
-            user.email.endsWith("@yourdomain.com")
-          );
-          const role: UserRole = isAdmin ? "admin" : "viewer";
-
-          // Update user role in database (this runs after PrismaAdapter creates the user/account)
-          const dbUser = await prismaClient.user.upsert({
-            where: { email: user.email! },
-            update: { role },
-            create: { 
-              email: user.email!, 
-              role, 
-              name: user.name || null, 
-              image: user.image || null 
-            },
-            select: { id: true, role: true }
-          });
+          const isAdmin = adminEmails.includes(userEmail) || 
+                         adminDomains.some(domain => userEmail.endsWith(`@${domain}`)) ||
+                         userEmail.endsWith("@yourdomain.com");
           
-          if (dbUser) {
-            token.sub = dbUser.id.toString();
-            token.role = dbUser.role as UserRole;
-            token.email = user.email || "";
-            token.name = user.name || "";
-            token.image = user.image || "";
+          if (isAdmin) {
+            role = "admin";
+            console.log(`[Auth] User role from environment variable: admin for ${userEmail}`);
           }
-        } catch (error) {
-          console.error('Error fetching user in JWT callback:', error);
         }
+
+        // Update token with latest role
+        token.role = role;
       }
+
+      // On first sign-in, store user info in token
+      if (user && account) {
+        token.sub = user.id?.toString() || user.email || "";
+        token.email = user.email || "";
+        token.name = user.name || "";
+        token.image = user.image || "";
+      }
+      
       return token;
     },
     async session({ session, token }) {
-      // For JWT strategy, get data from token instead of database
+      // Get data from token instead of database
       if (token.sub && session.user) {
         session.user.id = token.sub;
         session.user.role = token.role as UserRole;
@@ -112,8 +159,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async signIn({ user, account, profile }) {
-      // Let PrismaAdapter handle User/Account creation automatically
-      // Role assignment is handled in the JWT callback after successful authentication
+      // Allow sign in without database
       return true;
     },
   },

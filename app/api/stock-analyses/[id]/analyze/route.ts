@@ -1,0 +1,67 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { serverApiRequestWithCookies } from '@/lib/api-config';
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    
+    // Validate id parameter
+    if (!id || id === 'undefined' || id === 'null' || id === 'NaN') {
+      return NextResponse.json(
+        { error: 'Invalid stock analysis ID' },
+        { status: 400 }
+      );
+    }
+
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId) || numericId <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid stock analysis ID' },
+        { status: 400 }
+      );
+    }
+
+    // Forward the request to backend API with cookies
+    const data = await serverApiRequestWithCookies(
+      `/api/stock-analyses/${numericId}/analyze`,
+      request,
+      {
+        method: 'POST',
+      }
+    );
+    
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('[POST /api/stock-analyses/[id]/analyze] Error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStatus = (error as any)?.status || 500;
+    const isConnectionError = (error as any)?.isConnectionError || false;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://72.60.233.159:3050';
+    
+    // Provide more detailed error information for connection errors
+    if (isConnectionError) {
+      return NextResponse.json(
+        { 
+          error: 'Backend connection failed',
+          message: `Cannot connect to backend at ${backendUrl}. Please check:\n1. Backend server is running\n2. NEXT_PUBLIC_API_URL is set correctly in .env.local\n3. Network connectivity is available`,
+          backendUrl,
+          details: (error as any)?.details || {},
+        },
+        { status: 503 }
+      );
+    }
+    
+    return NextResponse.json(
+      { 
+        error: 'Failed to perform stock analysis',
+        message: errorMessage,
+        details: (error as any)?.details || {},
+      },
+      { status: errorStatus }
+    );
+  }
+}

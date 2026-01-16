@@ -1,275 +1,167 @@
-import { NextResponse } from "next/server";
-import type { CreateStockAnalysisInput } from "@/lib/types/stock-analysis";
-import { analyzeStockDataFromCSV } from "@/lib/services/stock-analysis";
-import { saveFactorAnalysisToDatabase } from "@/lib/services/stock-factor-service";
-import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth-utils";
-import { canViewStockAnalyses, canCreateStockAnalysis } from "@/lib/auth";
-import { writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
+import { NextRequest, NextResponse } from 'next/server';
+import { serverApiRequestWithCookies } from '@/lib/api-config';
 
-// Helper function to fetch stock price
-async function fetchStockPrice(symbol: string) {
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/stock-price/${symbol}`, {
-      headers: {
-        'Cache-Control': 'no-cache',
-      },
-    });
+    const { searchParams } = new URL(request.url);
+    const page = searchParams.get('page') || '1';
+    const limit = searchParams.get('limit') || '10';
     
-    if (!response.ok) {
-      console.warn(`Failed to fetch stock price for ${symbol}: ${response.status}`);
-      return null;
+    // Get backend URL from environment - defaults to remote backend
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://72.60.233.159:3050';
+    
+    // Debug: Log cookie forwarding
+    const cookieHeader = request.headers.get('cookie');
+    const isLocalhost = backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1');
+    
+    console.log('[GET /api/stock-analyses] Forwarding request to backend');
+    console.log('[GET /api/stock-analyses] Backend URL:', backendUrl);
+    console.log('[GET /api/stock-analyses] Cookies present:', !!cookieHeader);
+    console.log('[GET /api/stock-analyses] Using remote backend:', !isLocalhost);
+    
+    if (isLocalhost) {
+      console.warn('[GET /api/stock-analyses] WARNING: Using localhost backend. Set NEXT_PUBLIC_API_URL=http://72.60.233.159:3050 to use remote backend.');
     }
     
-    const data = await response.json();
-    return data;
+    if (cookieHeader) {
+      const hasNextAuthCookie = cookieHeader.includes('next-auth.session-token') || cookieHeader.includes('__Secure-next-auth.session-token');
+      console.log('[GET /api/stock-analyses] NextAuth cookie present:', hasNextAuthCookie);
+    } else {
+      console.warn('[GET /api/stock-analyses] No cookies found in request! User may not be authenticated.');
+    }
+    
+    // Forward the request to backend API with cookies
+    const data = await serverApiRequestWithCookies(
+      `/api/stock-analyses?page=${page}&limit=${limit}`,
+      request
+    );
+    
+    return NextResponse.json(data);
   } catch (error) {
-    console.error(`Error fetching stock price for ${symbol}:`, error);
-    return null;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://72.60.233.159:3050';
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const backendError = (error as any)?.backendError || (error as any)?.details;
+    
+    // Get error status from error object (set by serverApiRequestWithCookies)
+    const errorStatus = (error as any)?.status;
+    
+    // Log full error object for debugging
+    console.error('[GET /api/stock-analyses] Error:', errorMessage);
+    console.error('[GET /api/stock-analyses] Error Status:', errorStatus);
+    console.error('[GET /api/stock-analyses] Full Error Object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error('[GET /api/stock-analyses] Error Details:', {
+      message: errorMessage,
+      status: errorStatus,
+      stack: errorStack,
+      backendUrl,
+      hasCookies: !!request.headers.get('cookie'),
+      // Include full backend error details
+      backendError: backendError,
+      backendMessage: backendError?.message,
+      backendErrorField: backendError?.error,
+      backendStack: backendError?.stack,
+      backendDetails: backendError?.details,
+      // Include all error properties
+      errorStatus: errorStatus,
+      errorDetails: (error as any)?.details,
+      // Check for common connection errors
+      isConnectionError: errorMessage.includes('ECONNREFUSED') || 
+                        errorMessage.includes('ENOTFOUND') || 
+                        errorMessage.includes('fetch failed') ||
+                        errorMessage.includes('network'),
+    });
+    
+    // Check if it's an authentication error - check both error message and status code
+    const errorMessageLower = errorMessage.toLowerCase();
+    const backendErrorMessage = backendError?.message || backendError?.error || '';
+    const backendErrorMessageLower = backendErrorMessage.toLowerCase();
+    
+    const isAuthError = errorStatus === 401 ||
+                       errorMessageLower.includes('unauthorized') || 
+                       errorMessageLower.includes('401') ||
+                       backendErrorMessageLower.includes('unauthorized') ||
+                       backendError?.error === 'Unauthorized';
+    
+    // Check if it's a connection error
+    const isConnectionError = errorMessage.includes('ECONNREFUSED') || 
+                             errorMessage.includes('ENOTFOUND') || 
+                             errorMessage.includes('fetch failed') ||
+                             errorMessage.includes('network');
+    
+    // Extract backend error message if available
+    const finalBackendErrorMessage = backendError?.message || backendError?.error || errorMessage;
+    const backendErrorDetails = backendError?.details || backendError;
+    
+    // Use error status if available, otherwise default to 500
+    let statusCode = errorStatus || 500;
+    let errorResponse: any = {
+      error: 'Failed to fetch stock analyses',
+      message: finalBackendErrorMessage,
+      // Include backend details if available
+      ...(backendErrorDetails && typeof backendErrorDetails === 'object' && { details: backendErrorDetails }),
+      // Include backend stack for debugging
+      ...(backendError?.stack && { stack: backendError.stack }),
+    };
+    
+    if (isAuthError) {
+      statusCode = 401;
+      errorResponse = {
+        error: 'Authentication failed',
+        message: finalBackendErrorMessage || 'Unauthorized',
+        details: backendErrorDetails || 'Please ensure you are logged in and your session is valid.',
+      };
+    } else if (isConnectionError) {
+      statusCode = 503;
+      errorResponse = {
+        error: 'Backend service unavailable',
+        message: `Cannot connect to backend at ${backendUrl}. Please ensure the backend is running and NEXT_PUBLIC_API_URL is set correctly in .env.local`,
+        details: 'If you just updated .env.local, restart your Next.js dev server (NEXT_PUBLIC_* variables are embedded at build time).',
+        backendUrl,
+      };
+    }
+    
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
 
-/**
- * GET /api/stock-analyses
- * List all stock analyses
- */
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // Check if user has permission to view stock analyses
-    if (!canViewStockAnalyses(user.role)) {
-      return NextResponse.json(
-        { error: "Insufficient permissions to view stock analyses" },
-        { status: 403 }
-      );
-    }
-
-    const stockAnalyses = await prisma.stockAnalysis.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-
-    return NextResponse.json({
-      data: { stockAnalyses }
-    });
-  } catch (error) {
-    console.error("Error fetching stock analyses:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch stock analyses" },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * POST /api/stock-analyses
- * Create a new stock analysis
- */
-export async function POST(request: Request) {
-  try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    if (!canCreateStockAnalysis(user.role)) {
-      return NextResponse.json(
-        { error: "Forbidden - Insufficient permissions to create stock analyses" },
-        { status: 403 }
-      );
-    }
-
-    const body: CreateStockAnalysisInput = await request.json();
-    const { symbol, name, csvContent, minPctChange = 4.0, market = "us", overwrite = false } = body;
-
-    if (!symbol || !csvContent) {
-      return NextResponse.json(
-        { error: "Symbol and CSV content are required" },
-        { status: 400 }
-      );
-    }
-
-    // Perform analysis
-    console.log('[Stock Analysis] Analyzing data for symbol:', symbol, 'market:', market);
-    const analysisResult = analyzeStockDataFromCSV(csvContent, symbol, minPctChange, market);
-    console.log('[Stock Analysis] Analysis complete, transactions found:', analysisResult.transactionsFound);
-
-    // Fetch latest stock price
-    console.log('[Stock Analysis] Fetching latest stock price for symbol:', symbol);
-    const stockPriceData = await fetchStockPrice(symbol);
+    const body = await request.json();
+    console.log('[POST /api/stock-analyses] Request body:', body);
     
-    let latestPrice = null;
-    let priceChange = null;
-    let priceChangePercent = null;
-    let priceUpdatedAt = null;
-    
-    if (stockPriceData) {
-      latestPrice = stockPriceData.price;
-      priceChange = stockPriceData.change;
-      priceChangePercent = stockPriceData.changePercent;
-      priceUpdatedAt = new Date();
-      console.log('[Stock Analysis] Stock price fetched:', { latestPrice, priceChange, priceChangePercent });
-    } else {
-      console.log('[Stock Analysis] Failed to fetch stock price, using null values');
-    }
-
-    // Save CSV file for future factor analysis
-    const csvDir = join(process.cwd(), 'uploads', 'stock-csvs');
-    mkdirSync(csvDir, { recursive: true });
-    const csvFileName = `${symbol.toUpperCase()}_${Date.now()}.csv`;
-    const csvFilePath = join(csvDir, csvFileName);
-    writeFileSync(csvFilePath, csvContent);
-    console.log('[Stock Analysis] CSV file saved to:', csvFilePath);
-
-    // Check for duplicate based on symbol + date range
-    // Extract date range from the analysis result
-    const analysisDates = analysisResult.transactions.map(tx => tx.date).sort();
-    const dateRangeStart = analysisDates[0];
-    const dateRangeEnd = analysisDates[analysisDates.length - 1];
-    
-    // Check for existing analysis with same symbol and overlapping date range
-    const existingAnalysis = await prisma.stockAnalysis.findFirst({
-      where: {
-        symbol: symbol.toUpperCase(),
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // If existing analysis found, check for date overlap
-    let hasDateOverlap = false;
-    if (existingAnalysis) {
-      try {
-        const existingResults = JSON.parse(existingAnalysis.analysisResults || '{}');
-        const existingDates = existingResults.transactions?.map((tx: any) => tx.date) || [];
-        const existingDateRange = existingDates.sort((a: string, b: string) => a.localeCompare(b));
-        const existingStart = existingDateRange[0];
-        const existingEnd = existingDateRange[existingDateRange.length - 1];
-        
-        // Check if date ranges overlap
-        hasDateOverlap = !(
-          dateRangeEnd < existingStart || 
-          dateRangeStart > existingEnd
-        );
-        
-        console.log('[Stock Analysis] Date overlap check:', {
-          newRange: `${dateRangeStart} to ${dateRangeEnd}`,
-          existingRange: `${existingStart} to ${existingEnd}`,
-          hasOverlap: hasDateOverlap
-        });
-      } catch (parseError) {
-        console.warn('[Stock Analysis] Failed to parse existing analysis results:', parseError);
-        // If we can't parse existing results, treat as potential duplicate
-        hasDateOverlap = true;
-      }
-    }
-
-    if (hasDateOverlap && !overwrite) {
-      console.log('[Stock Analysis] Overlapping data detected, asking user for confirmation. ID:', existingAnalysis?.id);
-      return NextResponse.json(
-        {
-          error: "Overlapping data detected",
-          details: `Data for ${symbol.toUpperCase()} from ${dateRangeStart} to ${dateRangeEnd} overlaps with existing analysis.`,
-          existingId: existingAnalysis?.id,
-          dateRange: { start: dateRangeStart, end: dateRangeEnd },
-          requiresConfirmation: true
-        },
-        { status: 409 } // 409 Conflict
-      );
-    }
-
-    let stockAnalysis;
-
-    if (existingAnalysis && overwrite && hasDateOverlap) {
-      // Update existing record
-      console.log('[Stock Analysis] Overwriting existing record ID:', existingAnalysis.id);
-      stockAnalysis = await prisma.stockAnalysis.update({
-        where: { id: existingAnalysis.id },
-        data: {
-          symbol: symbol.toUpperCase(),
-          name: name || null,
-          status: 'processing',
-          analysisResults: JSON.stringify(analysisResult),
-          aiInsights: null,
-          minPctChange,
-          csvFilePath,
-          latestPrice,
-          priceChange,
-          priceChangePercent,
-          priceUpdatedAt,
-          updatedAt: new Date()
-        }
-      });
-      console.log('[Stock Analysis] Database record updated with ID:', stockAnalysis.id);
-    } else {
-      // Create new record
-      console.log('[Stock Analysis] Creating new database record...');
-      stockAnalysis = await prisma.stockAnalysis.create({
-        data: {
-          symbol: symbol.toUpperCase(),
-          name: name || null,
-          csvFilePath,
-          status: 'processing',
-          analysisResults: JSON.stringify(analysisResult),
-          aiInsights: null,
-          minPctChange,
-          latestPrice,
-          priceChange,
-          priceChangePercent,
-          priceUpdatedAt
-        }
-      });
-      console.log('[Stock Analysis] Database record created with ID:', stockAnalysis.id);
-    }
-
-    // Generate and save complete factor analysis
-    console.log('[Stock Analysis] Generating complete factor analysis...');
-    try {
-      await saveFactorAnalysisToDatabase(stockAnalysis.id, csvContent, analysisResult);
-      
-      // Update status to completed
-      stockAnalysis = await prisma.stockAnalysis.update({
-        where: { id: stockAnalysis.id },
-        data: { status: 'completed' }
-      });
-      
-      console.log('[Stock Analysis] Factor analysis completed successfully');
-    } catch (factorError) {
-      console.error('[Stock Analysis] Factor analysis failed:', factorError);
-      // Update status to factor_failed
-      stockAnalysis = await prisma.stockAnalysis.update({
-        where: { id: stockAnalysis.id },
-        data: { status: 'factor_failed' }
-      });
-    }
-
-    return NextResponse.json(
-      { data: { stockAnalysis } },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("[Stock Analysis] Error creating stock analysis:", error);
-    console.error("[Stock Analysis] Error details:", {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    return NextResponse.json(
+    // Forward the request to backend API with cookies
+    const data = await serverApiRequestWithCookies(
+      '/api/stock-analyses',
+      request,
       {
-        error: "Failed to create stock analysis",
-        details: error instanceof Error ? error.message : 'Unknown error'
+        method: 'POST',
+        body: JSON.stringify(body),
+      }
+    );
+    
+    console.log('[POST /api/stock-analyses] Backend response:', data);
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('[POST /api/stock-analyses] Error:', error);
+    console.error('[POST /api/stock-analyses] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      status: (error as any)?.status,
+      details: (error as any)?.details,
+      backendError: (error as any)?.backendError,
+    });
+    
+    const status = (error as any)?.status || 500;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const backendError = (error as any)?.backendError;
+    
+    return NextResponse.json(
+      { 
+        error: 'Failed to create stock analysis',
+        message: backendError?.message || backendError?.error || errorMessage,
+        details: backendError || (error as any)?.details,
       },
-      { status: 500 }
+      { status }
     );
   }
 }

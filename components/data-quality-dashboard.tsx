@@ -121,6 +121,7 @@ export function DataQualityDashboard({
                   status === "completed" ? "bg-green-500" :
                   status === "processing" || status === "ai_processing" ? "bg-blue-500 animate-pulse" :
                   status === "factor_failed" ? "bg-orange-500" :
+      status === "factors_ready" ? "bg-green-500" :
                   status === "failed" ? "bg-red-500" : "bg-gray-500"
                 }>
                   {status || "draft"}

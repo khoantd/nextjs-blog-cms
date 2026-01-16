@@ -1,9 +1,9 @@
 # Cursor Rules for Next.js Blog CMS with AI Workflows
 
 ## Project Overview
-This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase, and LiteLLM. The application features automated blog post processing including grammar fixes, table of contents generation, and publishing workflows. **Now includes Google OAuth authentication with role-based access control (RBAC)** and **Stock Analysis with Chart Visualization**.
+This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase, and LiteLLM. The application features automated blog post processing including grammar fixes, table of contents generation, and publishing workflows. **Now includes Google OAuth authentication with role-based access control (RBAC)** and **Comprehensive Stock Analysis System with Factor Analysis, Daily Scoring, Earnings Integration, and Chart Visualization**.
 
-**Architecture Note**: This codebase follows enterprise-grade patterns with service layers, comprehensive error handling, strict type safety, secure authentication, and interactive data visualization.
+**Architecture Note**: This codebase follows enterprise-grade patterns with service layers, comprehensive error handling, strict type safety, secure authentication, interactive data visualization, and advanced financial analysis capabilities.
 
 ## Tech Stack
 - **Framework**: Next.js 14 with App Router
@@ -19,6 +19,9 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - **Error Handling**: Custom error classes with centralized logging
 - **Data Visualization**: Recharts for interactive charts and graphs
 - **AI Proxy**: LiteLLM for unified AI API access across multiple providers
+- **CSV Processing**: csv-parse for stock data parsing
+- **HTTP Client**: axios for external API calls (Alpha Vantage, etc.)
+- **Stock Data APIs**: Alpha Vantage for earnings data
 
 ## Code Style Guidelines
 
@@ -29,13 +32,19 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - Database schema in `/prisma`
 - Server actions in `/app/actions.ts`
 - Error handling in `/lib/errors.ts`
-- Validation schemas in `/lib/validation.ts`
-- Constants in `/lib/constants.ts`
 - **Authentication**: `/lib/auth.ts` (NextAuth config & RBAC)
 - **Auth utilities**: `/lib/auth-utils.ts` (server-side helpers)
 - **Auth types**: `/types/next-auth.d.ts` (TypeScript extensions)
 - **Stock Analysis**: `/components/stock-chart.tsx` (chart visualization component)
 - **Stock Details**: `/components/stock-analysis-detail.tsx` (analysis with chart tab)
+- **Stock Factors**: `/lib/stock-factors.ts` (factor analysis, daily scoring, technical indicators)
+- **Earnings Service**: `/lib/earnings-service.ts` (Alpha Vantage integration)
+- **Earnings Analysis**: `/lib/earnings-analysis.ts` (AI-powered earnings analysis)
+- **Price Recommendations**: `/lib/ai-price-recommendations.ts` (AI price target generation)
+- **Stock API**: `/lib/stock-api.ts` (stock data fetching utilities)
+- **Daily Scoring**: `/components/daily-scoring-tab.tsx` (daily scoring UI)
+- **Earnings Tab**: `/components/earnings-tab.tsx` (earnings data display)
+- **Factor Tables**: `/components/stock-factor-table.tsx` and `/components/stock-factor-table-backend.tsx`
 
 ### TypeScript (Enhanced)
 - Strict mode is enabled - all types must be properly defined
@@ -78,8 +87,8 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - Implement graceful error recovery in server actions
 
 ### Input Validation
-- Use Zod schemas from `/lib/validation.ts` for all inputs
-- Apply validateInput() helper for schema validation
+- Use Zod schemas directly (import from `zod` package) for all inputs
+- Use `schema.parse()` or `schema.safeParse()` for validation
 - Use sanitization functions for user content
 - Validate all API route inputs and server action parameters
 - Never trust external input - always validate
@@ -108,13 +117,15 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 ### AI Workflows (Enhanced)
 - Use Inngest client from `/lib/inngest/client`
 - Follow existing workflow patterns in `/lib/workflow-templates.ts`
-- Use constants from `/lib/constants.ts` for event names (WORKFLOW_EVENTS)
+- Use event names directly as strings (e.g., "blog-post.updated", "blog-post.published")
 - Handle workflow states and approvals properly
 - Apply proper error handling for external service calls
 - Use ExternalServiceError for AI service failures
-- **LiteLLM Integration**: Use LiteLLM proxy for unified AI API access across providers (OpenAI, Anthropic, etc.)
+- **LiteLLM Integration**: Use `litellm` package directly via `import { completion } from 'litellm'`
 - **LiteLLM Configuration**: Set LITELLM_API_KEY and LITELLM_BASE_URL in environment variables
 - **Model Selection**: Use LiteLLM model format (e.g., "openai/gpt-4", "anthropic/claude-3")
+- **Direct Usage**: Code imports `completion` directly from `litellm` package (see `/lib/earnings-analysis.ts`, `/lib/ai-price-recommendations.ts`)
+- **Optional Proxy**: `/lib/litellm-proxy.ts` exists as a simple wrapper but is not the primary usage pattern
 - **CRITICAL Workflow Structure**: When creating workflows for the automation editor:
   - **DO NOT** include edge to `$sink` - the Inngest workflow kit auto-generates it
   - **DO** include explicit `id` fields for all edges (e.g., `{"id":"edge-source-1","from":"$source","to":"1"}`)
@@ -133,6 +144,7 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 - **Required for Auth**: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUTH_SECRET, NEXTAUTH_URL
 - **Required for AI**: OPENAI_API_KEY (prevents route initialization errors)
 - **Required for LiteLLM**: LITELLM_API_KEY, LITELLM_BASE_URL
+- **Required for Earnings**: ALPHA_VANTAGE_API_KEY (for earnings data fetching)
 - Include Supabase URL/keys and AI API keys
 - Never commit `.env.local` - use `.env.example` as template
 
@@ -162,13 +174,19 @@ This is a Next.js 14 blog CMS with AI-powered workflows using Inngest, Supabase,
 ### Server Actions (Enhanced)
 ```typescript
 "use server";
-import { validateInput } from "@/lib/validation";
 import { handleError, logError } from "@/lib/errors";
 import { BlogPostService } from "@/app/actions";
+import { z } from "zod";
+
+// Define Zod schema for validation
+const inputSchema = z.object({
+  // Define your schema fields
+});
 
 export const actionName = async (params: InputType) => {
   try {
-    const validatedParams = validateInput(inputSchema, params);
+    // Validate input with Zod
+    const validatedParams = inputSchema.parse(params);
     return await BlogPostService.operation(validatedParams);
   } catch (error) {
     logError(error as Error, { action: 'actionName', params });
@@ -248,13 +266,19 @@ const handleError = (error: Error) => {
 };
 
 // LiteLLM Error Handling
+import { completion } from 'litellm';
+
 try {
-  const response = await litellm.completion({
-    model: "openai/gpt-4",
-    messages: [{ role: "user", content: prompt }]
+  const response = await completion({
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    apiKey: process.env.LITELLM_API_KEY || process.env.OPENAI_API_KEY,
+    baseUrl: process.env.LITELLM_BASE_URL,
+    temperature: 0.3,
+    max_tokens: 1000,
   });
 } catch (error) {
-  logError(error as Error, { context: 'litellm-api-call', model: "openai/gpt-4" });
+  logError(error as Error, { context: 'litellm-api-call', model: "gpt-4o-mini" });
   throw new ExternalServiceError('AI service unavailable', error as Error);
 }
 ```
@@ -297,25 +321,32 @@ export async function deletePost(id: string) {
 ## Key Files to Understand
 - `/app/actions.ts` - Server actions with BlogPostService and error handling
 - `/lib/errors.ts` - Custom error classes and error handling utilities
-- `/lib/validation.ts` - Zod schemas and validation helpers
-- `/lib/constants.ts` - Application constants and configuration
 - `/lib/types.ts` - Enhanced TypeScript types (BlogPostStatus, Workflow, User, UserRole)
+- `/lib/types/stock-analysis.ts` - Stock analysis type definitions
 - `/lib/utils.ts` - Type-safe utilities (ApiResponse, fetcher)
 - **`/lib/auth.ts`** - NextAuth configuration and RBAC permission helpers
 - **`/lib/auth-utils.ts`** - Server-side authentication utilities
 - **`/types/next-auth.d.ts`** - NextAuth TypeScript type extensions
 - **`/middleware.ts`** - Route protection middleware with Inngest exclusion
-- `/components/unified-automation-manager.tsx` - Main workflow editor
-- `/components/user-profile.tsx` - User profile sidebar component
 - `/lib/workflow-templates.ts` - AI workflow definitions
 - `/lib/inngest/` - Inngest client and workflow definitions
-- **`/lib/litellm.ts`** - LiteLLM configuration and utilities (if exists)
-- `/prisma/schema.prisma` - Database schema (includes User, Account, Session models)
+- **`/lib/litellm-proxy.ts`** - LiteLLM proxy wrapper utility (optional, code uses `litellm` package directly)
+- `/prisma/schema.prisma` - Database schema (includes User, Account, Session, StockAnalysis, DailyFactorData, DailyScore, EarningsData models)
 - **`/components/stock-chart.tsx`** - Stock price visualization with Recharts
 - **`/components/stock-analysis-detail.tsx`** - Stock analysis with integrated chart tab
+- **`/lib/stock-factors.ts`** - Stock factor analysis, daily scoring, and technical indicators
+- **`/lib/earnings-service.ts`** - Alpha Vantage earnings data service
+- **`/lib/earnings-analysis.ts`** - AI-powered earnings analysis service
+- **`/lib/ai-price-recommendations.ts`** - AI price recommendation generation
+- **`/components/daily-scoring-tab.tsx`** - Daily scoring analysis UI
+- **`/components/earnings-tab.tsx`** - Earnings data display component
 - `CODE_REVIEW_SUMMARY.md` - Documentation of applied best practices
 - **`AUTHENTICATION_SETUP.md`** - Complete authentication setup guide
 - **`QUICK_START_AUTH.md`** - 5-minute quick start for authentication
+- **`docs/STOCK_ANALYSIS.md`** - Stock analysis feature documentation
+- **`docs/STOCK_FACTOR_ANALYSIS.md`** - Factor analysis system documentation
+- **`docs/DAILY_SCORING_SYSTEM.md`** - Daily scoring system documentation
+- **`EARNINGS_IMPLEMENTATION_SUMMARY.md`** - Earnings feature implementation guide
 
 ## Git Workflow
 - Use conventional commits
@@ -386,3 +417,168 @@ export async function deletePost(id: string) {
 - **Critical**: Ensure OPENAI_API_KEY is set in production to prevent route initialization errors
 - **LiteLLM Deployment**: Configure LITELLM_API_KEY and LITELLM_BASE_URL for production AI services
 - **Inngest CLI**: Verify `/api/inngest` endpoint is accessible for development syncing
+- **Stock Analysis Deployment**: Ensure CSV upload directory (`uploads/stock-csvs/`) has write permissions
+- **Alpha Vantage API**: Configure ALPHA_VANTAGE_API_KEY for earnings data (rate limits: 5 calls/minute, 500/day)
+
+## Stock Analysis System
+
+### Overview
+Comprehensive stock analysis system with factor analysis, daily scoring, earnings integration, and AI-powered price recommendations. Supports CSV upload, technical indicator calculation, and database-backed analysis storage.
+
+### Core Features
+
+#### 1. Stock Factor Analysis (`/lib/stock-factors.ts`)
+- **10 Market Factors**: Technical, fundamental, market, and sentiment factors
+  - Technical: `volume_spike`, `break_ma50`, `break_ma200`, `rsi_over_60`
+  - Market: `market_up`, `sector_up`, `short_covering`
+  - Fundamental: `earnings_window`, `macro_tailwind`
+  - Sentiment: `news_positive`
+- **Technical Indicators**: Calculates MA20, MA50, MA200, RSI automatically
+- **Factor Analysis**: `analyzeFactors()` function processes stock data with optional market/sector data
+- **Factor Correlation**: `correlateFactorsWithPriceMovement()` analyzes factor effectiveness
+
+#### 2. Daily Scoring System
+- **Weighted Scoring**: Configurable factor weights (default: volume_spike 25%, market_up 20%, etc.)
+- **Threshold System**: Default 45% threshold for high-probability predictions
+- **Prediction Levels**: HIGH_PROBABILITY, MODERATE, LOW_PROBABILITY
+- **Database Storage**: Daily scores stored in `DailyScore` model with factor breakdown
+- **Real-time Updates**: Polling-based status updates for analysis progress
+
+#### 3. Earnings Analysis
+- **Alpha Vantage Integration**: Fetches quarterly/annual earnings data
+- **AI Analysis**: LiteLLM-powered earnings summary, sentiment, and key points
+- **Data Transformation**: Converts Alpha Vantage format to internal structure
+- **Rate Limiting**: 12-second delays between API calls to respect limits
+
+#### 4. Price Recommendations
+- **AI-Powered**: Uses LiteLLM to generate buy/sell price targets
+- **Technical Analysis**: Considers support/resistance, trends, indicators
+- **Fundamental Analysis**: Incorporates factor analysis and earnings data
+- **Risk Management**: Includes stop-loss, target upside, time horizon
+
+### Database Models
+
+#### StockAnalysis
+- Stores uploaded CSV analysis results
+- Status: `draft`, `analyzing`, `processing`, `completed`, `failed`, `factor_failed`
+- JSON storage for analysis results and AI insights
+
+#### DailyFactorData
+- Technical indicators per trading day (MA20, MA50, MA200, RSI)
+- Factor flags for each day
+- Links to StockAnalysis via `stockAnalysisId`
+
+#### DailyScore
+- Daily scoring results with factor breakdown
+- Threshold analysis and predictions
+- Links to StockAnalysis
+
+#### EarningsData
+- Earnings calendar and results
+- EPS, revenue, surprise data
+- Links to StockAnalysis via symbol
+
+### CSV Processing Pattern
+```typescript
+import { parse } from 'csv-parse/sync';
+import fs from 'fs';
+
+// Parse CSV file
+const csvContent = fs.readFileSync(filePath, 'utf-8');
+const records = parse(csvContent, {
+  columns: true,
+  skip_empty_lines: true,
+  cast: (value, context) => {
+    if (context.column === 'Date') return value;
+    if (context.column === 'Volume') return parseInt(value) || 0;
+    return parseFloat(value) || 0;
+  }
+});
+
+// Calculate percentage changes
+const processedData = records.map((record, index) => {
+  const prevClose = index > 0 ? records[index - 1].Close : record.Close;
+  const pctChange = ((record.Close - prevClose) / prevClose) * 100;
+  return { ...record, pctChange };
+});
+```
+
+### Factor Analysis Pattern
+```typescript
+import { analyzeFactors, calculateDailyScore, DEFAULT_DAILY_SCORE_CONFIG } from '@/lib/stock-factors';
+
+// Analyze factors for stock data
+const factorAnalyses = analyzeFactors(stockData, {
+  nasdaqData: marketData,
+  sectorData: sectorData,
+  earningsDates: earningsDates,
+  newsData: newsData,
+  shortInterest: shortInterest,
+  macroEvents: macroEvents
+});
+
+// Calculate daily scores
+const dailyScores = calculateDailyScore(factorAnalyses[0], DEFAULT_DAILY_SCORE_CONFIG);
+
+// Get predictions
+const prediction = predictStrongMovement(currentFactors, DEFAULT_DAILY_SCORE_CONFIG);
+```
+
+### Earnings Service Pattern
+```typescript
+import { earningsService } from '@/lib/earnings-service';
+import { EarningsAnalysisService } from '@/lib/earnings-analysis';
+
+// Fetch earnings data
+const earningsData = await earningsService.getEarningsData('AAPL');
+
+// Analyze with AI
+const analysisService = new EarningsAnalysisService();
+const analysis = await analysisService.analyzeEarnings(earningsId);
+```
+
+### API Routes for Stock Analysis
+- **`/api/stock-analyses`**: GET (list), POST (create with CSV upload)
+- **`/api/stock-analyses/[id]`**: GET (single), DELETE
+- **`/api/stock-analyses/[id]/regenerate-factors`**: POST (regenerate factor analysis)
+- **`/api/stock-analyses/[id]/daily-scoring-db`**: POST (get/generate daily scoring)
+- **`/api/stock-analyses/[id]/csv-content`**: GET (fetch CSV data)
+- **`/api/stock-analyses/[id]/favorite`**: POST (toggle favorite status)
+- **`/api/earnings/[symbol]`**: GET (fetch earnings for symbol)
+- **`/api/stock-price/[symbol]`**: GET (fetch current stock price)
+
+### Component Patterns
+
+#### Stock Analysis Detail Component
+```typescript
+"use client";
+import { StockAnalysisDetail } from '@/components/stock-analysis-detail';
+import { useRealTimeStatus } from '@/lib/hooks/use-real-time-status';
+
+// Uses tabs for: Overview, Factors, Daily Scoring, Earnings, Chart, Price Recommendations
+// Real-time status polling for analysis progress
+// Favorite toggle functionality
+```
+
+#### Daily Scoring Tab
+```typescript
+"use client";
+import { DailyScoringTab } from '@/components/daily-scoring-tab';
+
+// Fetches from database-backed daily scoring endpoint
+// Displays score cards, predictions, factor breakdown
+// Supports regeneration of scoring data
+```
+
+### File Upload Pattern
+- CSV files saved to `uploads/stock-csvs/` directory
+- File paths stored in database (`csvFilePath` field)
+- Automatic factor generation after upload
+- Status tracking: `analyzing` → `processing` → `completed` or `factor_failed`
+
+### Error Handling for Stock Features
+- **CSV Parsing Errors**: Validate CSV format before processing
+- **Factor Generation Failures**: Set status to `factor_failed`, allow regeneration
+- **API Rate Limits**: Handle Alpha Vantage rate limits gracefully
+- **Missing Data**: Handle missing technical indicators (NaN values)
+- **Database Errors**: Use custom error classes for factor/score storage failures

@@ -126,7 +126,7 @@ export function DailyPredictionCard({
         </div>
 
         {/* Interpretation */}
-        <div className="bg-muted/50 p-4 rounded-lg">
+        <div className="bg-muted/40 p-4 rounded-lg">
           <div className="flex items-start gap-2">
             <Target className="h-4 w-4 mt-0.5 text-muted-foreground" />
             <p className="text-sm">{interpretation}</p>
@@ -170,7 +170,7 @@ export function DailyPredictionCard({
             </h4>
             <div className="space-y-2">
               {recommendations.map((recommendation, index) => (
-                <div key={index} className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded">
+                <div key={index} className="flex items-start gap-2 p-2 bg-blue-100 dark:bg-blue-950/30 rounded">
                   <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <p className="text-sm">{recommendation}</p>
                 </div>

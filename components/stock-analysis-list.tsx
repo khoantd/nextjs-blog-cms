@@ -6,26 +6,29 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Upload, Loader2, AlertCircle, TrendingDown, DollarSign, Star } from "lucide-react";
+import { TrendingUp, Upload, Loader2, AlertCircle, TrendingDown, DollarSign, Star, BarChart3, Calendar } from "lucide-react";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
 import { formatPrice } from "@/lib/currency-utils";
+import { getStockAnalyses } from "@/lib/stock-api";
 
 interface ApiResponse<T> {
   data: T;
   error?: string;
 }
 
-const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => {
-  if (!res.ok) {
+const fetcher = async () => {
+  try {
+    const response = await getStockAnalyses();
+    return response;
+  } catch (error) {
     throw new Error('Failed to fetch');
   }
-  return res.json();
-});
+};
 
 export function StockAnalysisList() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const { data, error, isLoading, mutate } = useSWR<ApiResponse<{ stockAnalyses: StockAnalysis[] }>>(
-    "/api/stock-analyses",
+  const { data, error, isLoading, mutate } = useSWR(
+    "stock-analyses",
     fetcher,
     {
       refreshInterval: 5000,
@@ -46,53 +49,23 @@ export function StockAnalysisList() {
     }
     
     try {
-      const response = await fetch(`/api/stock-analyses/${analysisId}/favorite`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        let errorData;
-        try {
-          const responseText = await response.text();
-          if (responseText) {
-            errorData = JSON.parse(responseText);
-          } else {
-            errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
-          }
-        } catch (parseError) {
-          errorData = { error: `HTTP ${response.status}: ${response.statusText || 'Unknown error'}` };
-        }
-        console.error('API Error Response:', errorData);
-        throw new Error(errorData.error || `Failed to update favorite status (${response.status})`);
-      }
-
-      const result = await response.json();
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const newFavoriteStatus = !currentFavorite;
       
-      if (result.success) {
-        // Update the local cache by mutating the data
-        mutate((currentData) => {
-          if (!currentData?.data?.stockAnalyses) return currentData;
-          
-          return {
-            ...currentData,
-            data: {
-              stockAnalyses: currentData.data.stockAnalyses.map(analysis =>
-                analysis.id === analysisId
-                  ? { ...analysis, favorite: result.data.favorite }
-                  : analysis
-              )
-            }
-          };
-        }, false);
-        
-        console.log(`Stock analysis ${result.data.favorite ? 'favorited' : 'unfavorited'} successfully`);
-      } else {
-        throw new Error('Failed to update favorite status');
+      const response = await fetch(`${baseUrl}/api/stock-analyses/${analysisId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ favorite: newFavoriteStatus }),
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error?.message || errorData.error || 'Failed to update favorite');
       }
+      
+      // Refresh the list to get updated favorite status
+      mutate();
     } catch (err) {
       console.error('Error updating favorite status:', err);
       // You could show a toast notification here if you have one
@@ -158,40 +131,43 @@ export function StockAnalysisList() {
     );
   }
 
-  const analyses = data?.data?.stockAnalyses || [];
+  const analyses = data?.data || [];
 
   // Filter and sort analyses
   const filteredAndSortedAnalyses = analyses
-    .filter(analysis => !showFavoritesOnly || analysis.favorite)
-    .sort((a, b) => {
+    .filter((analysis: StockAnalysis) => !showFavoritesOnly || analysis.favorite)
+    .sort((a: StockAnalysis, b: StockAnalysis) => {
       // Sort by favorite status first (favorites first), then by creation date
       if (a.favorite && !b.favorite) return -1;
       if (!a.favorite && b.favorite) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-  const favoriteCount = analyses.filter(analysis => analysis.favorite).length;
+  const favoriteCount = analyses.filter((analysis: StockAnalysis) => analysis.favorite).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Stock Analyses</h1>
-          <p className="text-muted-foreground">
-            Analyze stock price data to identify significant daily changes
+    <div className="space-y-8">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
+            Stock Analyses
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            Analyze stock price data to identify significant daily changes and patterns
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button
             variant={showFavoritesOnly ? "default" : "outline"}
             onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 transition-all duration-200 hover:scale-105"
           >
             <Star className={`h-4 w-4 ${showFavoritesOnly ? "fill-current" : ""}`} />
             {showFavoritesOnly ? "Show All" : `Favorites (${favoriteCount})`}
           </Button>
           <Link href="/stock-analysis/create">
-            <Button>
+            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transition-all duration-200 hover:scale-105 shadow-lg">
               <Upload className="mr-2 h-4 w-4" />
               New Analysis
             </Button>
@@ -200,24 +176,34 @@ export function StockAnalysisList() {
       </div>
 
       {showFavoritesOnly && favoriteCount === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center p-12">
-            <Star className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-4">No favorite stock analyses yet</p>
-            <p className="text-sm text-muted-foreground">
-              Click the star icon on any analysis to add it to your favorites
+        <Card className="border-dashed border-2 border-yellow-200 bg-gradient-to-br from-yellow-50 to-orange-50">
+          <CardContent className="flex flex-col items-center justify-center p-16">
+            <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-full flex items-center justify-center mb-6">
+              <Star className="h-8 w-8 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 mb-3">No favorite analyses yet</h3>
+            <p className="text-muted-foreground text-center mb-6 max-w-md">
+              Click the star icon on any analysis to add it to your favorites and quickly access your most important stocks.
             </p>
+            <Button variant="outline" onClick={() => setShowFavoritesOnly(false)}>
+              Browse All Analyses
+            </Button>
           </CardContent>
         </Card>
       )}
 
       {filteredAndSortedAnalyses.length === 0 && !showFavoritesOnly ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center p-12">
-            <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-4">No stock analyses yet</p>
+        <Card className="border-dashed border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+          <CardContent className="flex flex-col items-center justify-center p-16">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mb-6">
+              <TrendingUp className="h-8 w-8 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 mb-3">Start your first analysis</h3>
+            <p className="text-muted-foreground text-center mb-6 max-w-md">
+              Upload stock data to identify significant price changes and gain AI-powered insights.
+            </p>
             <Link href="/stock-analysis/create">
-              <Button>
+              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg">
                 <Upload className="mr-2 h-4 w-4" />
                 Create Your First Analysis
               </Button>
@@ -225,22 +211,35 @@ export function StockAnalysisList() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredAndSortedAnalyses.map((analysis) => {
             const results = parseAnalysisResults(analysis.analysisResults);
             return (
               <Link key={analysis.id} href={`/stock-analysis/${analysis.id}`}>
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                  <CardHeader>
+                <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer h-full border-0 bg-white/90 backdrop-blur-sm hover:scale-[1.02] overflow-hidden">
+                  {/* Card Header with Gradient Border */}
+                  <div className="h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                  <CardHeader className="pb-4">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <CardTitle className="text-2xl">{analysis.symbol}</CardTitle>
+                        <div className="flex items-center gap-3 mb-2">
+                          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
+                            {analysis.symbol}
+                          </CardTitle>
+                          {analysis.favorite && (
+                            <div className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center">
+                              <Star className="h-3 w-3 text-white fill-current" />
+                            </div>
+                          )}
+                        </div>
                         {analysis.name && (
-                          <CardDescription>{analysis.name}</CardDescription>
+                          <CardDescription className="text-base font-medium text-slate-600">
+                            {analysis.name}
+                          </CardDescription>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className={getStatusColor(analysis.status)}>
+                        <Badge className={`${getStatusColor(analysis.status)} text-white border-0 shadow-sm`}>
                           {analysis.status || "draft"}
                         </Badge>
                         <Button
@@ -255,101 +254,121 @@ export function StockAnalysisList() {
                               // You could show a toast notification here
                             }
                           }}
-                          className={`shrink-0 ${analysis.favorite ? "text-yellow-600 border-yellow-300 hover:bg-yellow-50" : ""}`}
+                          className={`shrink-0 transition-all duration-200 hover:scale-110 ${analysis.favorite ? "text-yellow-600 border-yellow-300 hover:bg-yellow-50 hover:border-yellow-400" : "hover:text-yellow-600 hover:border-yellow-300"}`}
                         >
                           <Star className={`h-4 w-4 ${analysis.favorite ? "fill-current" : ""}`} />
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {/* Price Information */}
-                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <CardContent className="space-y-4">
+                    {/* Enhanced Price Information */}
+                    <div className="p-4 bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl border border-slate-200/50">
+                      <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-2">
-                          <DollarSign className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-medium">Latest Price</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-semibold text-lg">
-                            {formatPriceWithNull(analysis.latestPrice, analysis.symbol)}
+                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <DollarSign className="h-4 w-4 text-blue-600" />
                           </div>
-                          <div className={`text-sm flex items-center justify-end space-x-1 ${formatPriceChange(analysis.priceChange, analysis.priceChangePercent).color}`}>
-                            {analysis.priceChange !== null && analysis.priceChange >= 0 ? (
-                              <TrendingUp className="h-3 w-3" />
-                            ) : analysis.priceChange !== null ? (
-                              <TrendingDown className="h-3 w-3" />
-                            ) : null}
-                            <span>
-                              {formatPriceChange(analysis.priceChange, analysis.priceChangePercent).text}
-                            </span>
-                          </div>
+                          <span className="text-sm font-semibold text-slate-700">Latest Price</span>
                         </div>
                       </div>
-
-                      {/* AI Price Recommendations */}
-                      {(analysis.buyPrice || analysis.sellPrice) && (
-                        <div className="grid grid-cols-2 gap-2">
-                          {analysis.buyPrice && (
-                            <div className="flex flex-col items-center p-2 bg-green-50 border border-green-200 rounded-lg">
-                              <div className="flex items-center space-x-1 text-green-600 mb-1">
-                                <TrendingUp className="h-3 w-3" />
-                                <span className="text-xs font-medium">Buy Target</span>
-                              </div>
-                              <div className="font-semibold text-green-700">
-                                {formatPrice(analysis.buyPrice, analysis.symbol)}
-                              </div>
-                              {analysis.latestPrice && (
-                                <div className="text-xs text-green-600 mt-1">
-                                  {((analysis.buyPrice - analysis.latestPrice) / analysis.latestPrice * 100).toFixed(1)}%
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {analysis.sellPrice && (
-                            <div className="flex flex-col items-center p-2 bg-red-50 border border-red-200 rounded-lg">
-                              <div className="flex items-center space-x-1 text-red-600 mb-1">
-                                <TrendingDown className="h-3 w-3" />
-                                <span className="text-xs font-medium">Sell Target</span>
-                              </div>
-                              <div className="font-semibold text-red-700">
-                                {formatPrice(analysis.sellPrice, analysis.symbol)}
-                              </div>
-                              {analysis.latestPrice && (
-                                <div className="text-xs text-red-600 mt-1">
-                                  {((analysis.sellPrice - analysis.latestPrice) / analysis.latestPrice * 100).toFixed(1)}%
-                                </div>
-                              )}
-                            </div>
-                          )}
+                      <div className="text-right">
+                        <div className="font-bold text-2xl text-slate-900">
+                          {formatPriceWithNull(analysis.latestPrice, analysis.symbol)}
                         </div>
-                      )}
+                        <div className={`flex items-center justify-end space-x-1 text-sm font-medium ${formatPriceChange(analysis.priceChange, analysis.priceChangePercent).color}`}>
+                          {analysis.priceChange !== null && analysis.priceChange >= 0 ? (
+                            <TrendingUp className="h-4 w-4" />
+                          ) : analysis.priceChange !== null ? (
+                            <TrendingDown className="h-4 w-4" />
+                          ) : null}
+                          <span>
+                            {formatPriceChange(analysis.priceChange, analysis.priceChangePercent).text}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-                      {/* Analysis Results */}
-                      {results && (
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Days:</span>
-                            <span className="font-medium">{results.totalDays}</span>
+                    {/* AI Price Recommendations */}
+                    {(analysis.buyPrice || analysis.sellPrice) && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {analysis.buyPrice && (
+                          <div className="p-3 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl">
+                            <div className="flex items-center space-x-1 text-green-600 mb-2">
+                              <TrendingUp className="h-4 w-4" />
+                              <span className="text-xs font-semibold">Buy Target</span>
+                            </div>
+                            <div className="font-bold text-green-700 text-lg">
+                              {formatPrice(analysis.buyPrice, analysis.symbol)}
+                            </div>
+                            {analysis.latestPrice && (
+                              <div className="text-xs text-green-600 mt-1 font-medium">
+                                {((analysis.buyPrice - analysis.latestPrice) / analysis.latestPrice * 100).toFixed(1)}% potential
+                              </div>
+                            )}
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Transactions Found:</span>
-                            <span className="font-medium text-green-600">
+                        )}
+                        {analysis.sellPrice && (
+                          <div className="p-3 bg-gradient-to-br from-red-50 to-pink-50 border border-red-200 rounded-xl">
+                            <div className="flex items-center space-x-1 text-red-600 mb-2">
+                              <TrendingDown className="h-4 w-4" />
+                              <span className="text-xs font-semibold">Sell Target</span>
+                            </div>
+                            <div className="font-bold text-red-700 text-lg">
+                              {formatPrice(analysis.sellPrice, analysis.symbol)}
+                            </div>
+                            {analysis.latestPrice && (
+                              <div className="text-xs text-red-600 mt-1 font-medium">
+                                {((analysis.sellPrice - analysis.latestPrice) / analysis.latestPrice * 100).toFixed(1)}% potential
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Analysis Results */}
+                    {results && (
+                      <div className="p-4 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl border border-purple-200/50">
+                        <h4 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
+                          <BarChart3 className="h-4 w-4" />
+                          Analysis Results
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Total Days:</span>
+                            <span className="font-bold text-slate-800">{results.totalDays}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Transactions:</span>
+                            <span className="font-bold text-green-600">
                               {results.transactionsFound}
                             </span>
                           </div>
-                          <div className="flex justify-between">
+                          <div className="flex justify-between items-center">
                             <span className="text-muted-foreground">Threshold:</span>
-                            <span className="font-medium">≥ {results.minPctChange}%</span>
+                            <span className="font-bold text-blue-600">≥ {results.minPctChange}%</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Status:</span>
+                            <Badge className={`${getStatusColor(analysis.status)} text-white border-0 text-xs`}>
+                              {analysis.status || "draft"}
+                            </Badge>
                           </div>
                         </div>
-                      )}
-                      
-                      <div className="flex justify-between pt-2 border-t text-sm">
-                        <span className="text-muted-foreground">Created:</span>
-                        <span className="font-medium">
-                          {new Date(analysis.createdAt).toLocaleDateString()}
-                        </span>
+                      </div>
+                    )}
+                    {/* Footer */}
+                    <div className="flex justify-between items-center pt-4 border-t border-slate-200/50">
+                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>Created {new Date(analysis.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex items-center space-x-1 text-blue-600">
+                        <span className="text-sm font-medium">View Details</span>
+                        <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       </div>
                     </div>
                   </CardContent>

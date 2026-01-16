@@ -1,140 +1,72 @@
-import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth-utils";
-import { canViewStockAnalyses } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import type { PrismaClient } from "@prisma/client";
+import { NextRequest, NextResponse } from 'next/server';
+import { serverApiRequestWithCookies } from '@/lib/api-config';
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const user = await getCurrentUser();
-
-    if (!user) {
+    
+    // Validate id parameter
+    if (!id || id === 'undefined' || id === 'null' || id === 'NaN') {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // Check if user has permission to view stock analyses
-    if (!canViewStockAnalyses(user.role)) {
-      return NextResponse.json(
-        { error: "Insufficient permissions to view stock analyses" },
-        { status: 403 }
-      );
-    }
-
-    const analysisId = parseInt(id);
-    if (isNaN(analysisId)) {
-      return NextResponse.json(
-        { error: "Invalid analysis ID" },
+        { error: 'Invalid stock analysis ID' },
         { status: 400 }
       );
     }
 
-    // Get the stock analysis from database
-    const stockAnalysis = await prisma.stockAnalysis.findUnique({
-      where: { id: analysisId },
-      select: {
-        id: true,
-        status: true,
-        updatedAt: true,
-        analysisResults: true,
-        aiInsights: true,
-      }
-    });
-
-    if (!stockAnalysis) {
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId) || numericId <= 0) {
       return NextResponse.json(
-        { error: "Stock analysis not found" },
-        { status: 404 }
+        { error: 'Invalid stock analysis ID' },
+        { status: 400 }
       );
     }
-
-    // Calculate progress based on status and available data
-    let progress = 0;
-    let message = "";
-
-    switch (stockAnalysis.status) {
-      case "draft":
-        progress = 0;
-        message = "Analysis ready to begin";
-        break;
-      case "analyzing":
-        progress = 25;
-        message = "Analyzing stock data...";
-        break;
-      case "processing":
-        progress = 50;
-        message = "Processing factors and indicators...";
-        break;
-      case "ai_processing":
-        progress = 75;
-        message = "Running AI analysis...";
-        break;
-      case "ai_completed":
-        progress = 90;
-        message = "AI analysis completed";
-        break;
-      case "completed":
-        progress = 100;
-        message = "Analysis complete";
-        break;
-      case "factor_failed":
-        progress = 45;
-        message = "Factor generation failed";
-        break;
-      case "failed":
-        progress = 0;
-        message = "Analysis failed";
-        break;
-      default:
-        progress = 0;
-        message = "Unknown status";
+    
+    // Forward the request to backend API with cookies
+    const endpoint = `/api/stock-analyses/${numericId}/status`;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://72.60.233.159:3050';
+    
+    // Log which backend is being used (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[GET /api/stock-analyses/[id]/status] Forwarding to backend: ${backendUrl}${endpoint}`);
     }
-
-    // Check if factor data exists to refine progress
-    if (stockAnalysis.status === "completed" || stockAnalysis.status === "ai_completed") {
-      // Use findMany instead of count to avoid potential undefined property issues
-      // Type assertion to bypass TypeScript error
-      const factorTables = await (prisma as any).factorTable.findMany({
-        where: { stockAnalysisId: analysisId },
-        select: { id: true }
-      });
-      const factorTableCount = factorTables.length;
-      
-      const dailyScores = await (prisma as any).dailyScore.findMany({
-        where: { stockAnalysisId: analysisId },
-        select: { id: true }
-      });
-      const dailyScoreCount = dailyScores.length;
-
-      if (factorTableCount === 0) {
-        progress = Math.max(progress - 20, 60);
-        message = "Analysis complete - factor generation pending";
-      } else if (dailyScoreCount === 0) {
-        progress = Math.max(progress - 10, 80);
-        message = "Analysis complete - daily scoring pending";
-      }
-    }
-
-    return NextResponse.json({
-      status: stockAnalysis.status,
-      lastUpdated: stockAnalysis.updatedAt,
-      progress,
-      message,
-      hasResults: !!stockAnalysis.analysisResults,
-      hasInsights: !!stockAnalysis.aiInsights,
-    });
-
+    
+    const data = await serverApiRequestWithCookies(
+      endpoint,
+      request
+    );
+    
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching status:", error);
+    console.error('[GET /api/stock-analyses/[id]/status] Error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStatus = (error as any)?.status || 500;
+    const isConnectionError = (error as any)?.isConnectionError || false;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://72.60.233.159:3050';
+    
+    // Provide more detailed error information for connection errors
+    if (isConnectionError) {
+      return NextResponse.json(
+        { 
+          error: 'Backend connection failed',
+          message: `Cannot connect to backend at ${backendUrl}. Please check:\n1. Backend server is running\n2. NEXT_PUBLIC_API_URL is set correctly in .env.local\n3. Network connectivity is available`,
+          backendUrl,
+          details: (error as any)?.details || {},
+        },
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Failed to fetch status" },
-      { status: 500 }
+      { 
+        error: 'Failed to fetch stock analysis status',
+        message: errorMessage,
+        details: (error as any)?.details || {},
+      },
+      { status: errorStatus }
     );
   }
 }

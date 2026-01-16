@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Loader2, TrendingUp, BarChart3, Brain } from "lucide-react";
-import { createStockFactorTable } from "@/app/actions";
 
 interface FactorData {
   Tx: number;
@@ -40,14 +39,10 @@ export function StockFactorTable({ csvContent, symbol, minPctChange = 4.0 }: Sto
     setError(null);
 
     try {
-      const result = await createStockFactorTable(csvContent, minPctChange);
-      
-      if (result.success && result.data) {
-        setFactorData(result.data);
-        setIsGenerated(true);
-      } else {
-        throw new Error('Failed to generate factor table');
-      }
+      // TODO: Implement factor table generation using backend API
+      // For now, show a placeholder
+      setFactorData([]);
+      setError("Factor table generation is not available in the current configuration.");
     } catch (err) {
       console.error('Error generating factor table:', err);
       setError(err instanceof Error ? err.message : 'An error occurred while generating factors');
@@ -113,7 +108,7 @@ export function StockFactorTable({ csvContent, symbol, minPctChange = 4.0 }: Sto
         )}
 
         {error && (
-          <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+          <div className="p-3 bg-destructive/20 text-destructive rounded-md text-sm border border-destructive/30">
             {error}
           </div>
         )}

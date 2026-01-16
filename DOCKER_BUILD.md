@@ -113,6 +113,8 @@ npm run docker:build
 | `--push` | | Push to registry after build | `false` |
 | `--no-cache` | | Build without cache | `false` |
 | `--dev` | | Build development image with mounted volumes | `false` |
+| `--api-url` | | Backend API URL | `http://72.60.233.159:3050` |
+| `--vnstock-url` | | Vnstock API URL | `http://72.60.233.159:8002` |
 | `--help` | `-h` | Show help message | |
 
 ## Examples
@@ -136,11 +138,13 @@ npm run docker:down
 ### Production Deployment
 
 ```bash
-# Build and push to production registry
+# Build and push to production registry with custom backend URL
 ./scripts/build-docker.sh \
   -r ghcr.io/myorg \
   -t v1.2.3 \
   -p linux/amd64 \
+  --api-url http://72.60.233.159:3050 \
+  --vnstock-url http://72.60.233.159:8002 \
   --push
 
 # Deploy with persistent database

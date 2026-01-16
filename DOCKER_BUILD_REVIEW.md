@@ -63,6 +63,10 @@ OPENAI_API_KEY=your-openai-key
 LITELLM_API_KEY=your-litellm-key
 LITELLM_BASE_URL=your-litellm-url
 
+# Backend API Configuration
+NEXT_PUBLIC_API_URL=http://72.60.233.159:3050
+NEXT_PUBLIC_VNSTOCK_API_URL=http://72.60.233.159:8002
+
 # Application
 NODE_ENV=production
 PORT=3000
