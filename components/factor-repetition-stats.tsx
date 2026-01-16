@@ -100,8 +100,8 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
     factorColumns.forEach(factor => {
       factorCounts[factor] = filteredData.reduce((sum, row) => {
         const value = row[factor as keyof FactorData];
-        // Count values that are true or 1 (handle both boolean and number formats)
-        if (value === true || value === 1) {
+        // Count values that are 1 (handle number format, skip null values)
+        if (typeof value === 'number' && value === 1) {
           return sum + 1;
         }
         return sum;
@@ -154,7 +154,7 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
       factorColumns.forEach(factor => {
         const count = rows.reduce((sum, row) => {
           const value = row[factor as keyof FactorData];
-          if (value === true || value === 1) {
+          if (typeof value === 'number' && value === 1) {
             return sum + 1;
           }
           return sum;
@@ -212,7 +212,7 @@ export function FactorRepetitionStats({ factorData }: FactorRepetitionStatsProps
       factorColumns.forEach(factor => {
         const count = rows.reduce((sum, row) => {
           const value = row[factor as keyof FactorData];
-          if (value === true || value === 1) {
+          if (typeof value === 'number' && value === 1) {
             return sum + 1;
           }
           return sum;
