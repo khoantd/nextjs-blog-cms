@@ -149,7 +149,7 @@ export interface FinancialRatios {
   roa?: number;
   pe_ratio?: number;
   pb_ratio?: number;
-  [key: string]: number | string;
+  [key: string]: number | string | undefined;
 }
 
 export interface BalanceSheetRequest {
