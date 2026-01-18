@@ -29,21 +29,69 @@ export async function POST(request: NextRequest) {
 
     // Call backend registration endpoint
     const backendUrl = API_CONFIG.BASE_URL;
-    const response = await fetch(`${backendUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password, name }),
+    const backendEndpoint = `${backendUrl}/api/auth/register`;
+    console.log(`[Register API] Calling backend: ${backendEndpoint}`);
+    console.log(`[Register API] Backend URL from config: ${API_CONFIG.BASE_URL}`);
+    
+    let response: Response;
+    try {
+      response = await fetch(backendEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, name }),
+      });
+    } catch (fetchError: any) {
+      console.error('[Register API] Fetch error:', fetchError);
+      const isConnectionError = 
+        fetchError?.message?.includes('ECONNREFUSED') ||
+        fetchError?.message?.includes('ENOTFOUND') ||
+        fetchError?.message?.includes('fetch failed');
+      
+      if (isConnectionError) {
+        return NextResponse.json(
+          {
+            error: 'Backend connection failed',
+            message: `Cannot connect to backend at ${backendUrl}. Please ensure the backend server is running.`,
+            backendUrl: backendUrl,
+          },
+          { status: 503 }
+        );
+      }
+      throw fetchError;
+    }
+
+    console.log(`[Register API] Backend response status: ${response.status}`);
+    const data = await response.json().catch((parseError) => {
+      console.error('[Register API] Failed to parse backend response:', parseError);
+      return { error: 'Failed to parse backend response' };
+    });
+    
+    console.log(`[Register API] Backend response data:`, { 
+      hasError: !!data.error, 
+      hasMessage: !!data.message,
+      status: response.status 
     });
 
-    const data = await response.json().catch(() => ({}));
-
     if (!response.ok) {
+      // Handle different error response formats
+      const errorMessage = data.message || 
+                          data.error?.message || 
+                          data.error || 
+                          'Failed to register user';
+      
+      console.error(`[Register API] Backend error (${response.status}):`, {
+        message: errorMessage,
+        data: data,
+        url: backendEndpoint
+      });
+      
       return NextResponse.json(
         {
-          error: data.error || 'Registration failed',
-          message: data.message || data.error || 'Failed to register user',
+          error: typeof data.error === 'string' ? data.error : 'Registration failed',
+          message: typeof errorMessage === 'string' ? errorMessage : 'Failed to register user',
+          status: response.status,
         },
         { status: response.status }
       );
