@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Info, LogIn, UserPlus, LogOut, CheckCircle2, XCircle, Settings } from "lucide-react";
 import { vnstockApi } from "@/lib/vnstock-api";
+import type { VnstockUser } from "@/lib/types/vnstock";
 
 interface VnstockApiConfigProps {
   className?: string;
@@ -26,7 +27,7 @@ export function VnstockApiConfig({ className }: VnstockApiConfigProps) {
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
-  const [currentUser, setCurrentUser] = useState<{ username: string; email: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<VnstockUser | null>(null);
   
   // API URL from environment
   const apiUrl = process.env.NEXT_PUBLIC_VNSTOCK_API_URL || 'http://72.60.233.159:8002';

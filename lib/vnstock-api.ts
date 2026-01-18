@@ -47,6 +47,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   VnstockErrorResponse,
+  VnstockUser,
 } from './types/vnstock';
 
 /**
@@ -167,8 +168,8 @@ export class VnstockApiService {
     });
   }
 
-  async getCurrentUser() {
-    return vnstockRequest(`${this.baseUrl}/auth/me`, {
+  async getCurrentUser(): Promise<VnstockUser> {
+    return vnstockRequest<VnstockUser>(`${this.baseUrl}/auth/me`, {
       method: 'GET',
     });
   }
