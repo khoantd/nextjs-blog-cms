@@ -65,8 +65,10 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.message || error.error || "Invalid credentials");
+            const errorData = await response.json().catch(() => ({}));
+            // Extract error message properly - could be in different fields
+            const errorMessage = errorData.message || errorData.error?.message || errorData.error || "Invalid credentials";
+            throw new Error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
           }
 
           const data = await response.json();
@@ -85,7 +87,9 @@ export const authOptions: NextAuthOptions = {
           };
         } catch (error: any) {
           console.error("Credentials authorization error:", error);
-          throw new Error(error.message || "Failed to authenticate");
+          // Extract error message properly
+          const errorMessage = error?.message || error?.error?.message || String(error) || "Failed to authenticate";
+          throw new Error(errorMessage);
         }
       },
     }),

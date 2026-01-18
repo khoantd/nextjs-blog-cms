@@ -46,13 +46,22 @@ function SignInForm() {
       });
 
       if (result?.error) {
-        setError(result.error);
+        // Handle error - NextAuth returns error as string
+        const errorMessage = typeof result.error === 'string' 
+          ? result.error 
+          : (result.error as any)?.message || String(result.error) || "Invalid credentials";
+        setError(errorMessage);
       } else if (result?.ok) {
         router.push(callbackUrl);
         router.refresh();
+      } else {
+        setError("An unexpected error occurred");
       }
     } catch (err: any) {
-      setError(err.message || "An error occurred during sign in");
+      // Handle error object properly
+      const errorMessage = err?.message || err?.error?.message || String(err) || "An error occurred during sign in";
+      setError(errorMessage);
+      console.error("Sign in error:", err);
     } finally {
       setIsLoading(false);
     }

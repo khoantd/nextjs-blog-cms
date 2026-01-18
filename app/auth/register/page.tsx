@@ -66,13 +66,18 @@ export default function Register() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || data.error || "Registration failed");
+        // Extract error message properly
+        const errorMessage = data.message || data.error?.message || data.error || "Registration failed";
+        throw new Error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
       }
 
       // Registration successful, redirect to sign in
       router.push("/auth/signin?registered=true");
     } catch (err: any) {
-      setError(err.message || "An error occurred during registration");
+      // Handle error object properly
+      const errorMessage = err?.message || err?.error?.message || String(err) || "An error occurred during registration";
+      setError(errorMessage);
+      console.error("Registration error:", err);
     } finally {
       setIsLoading(false);
     }
