@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { UserRole } from "./types";
 import { getGoogleClientId, getGoogleClientSecret } from "./server-auth";
 import { API_CONFIG } from "./api-config";
@@ -32,20 +33,79 @@ if (process.env.NODE_ENV === "development") {
   console.log('Config Source:', configSource);
 }
 
+// Check if Google OAuth is enabled (disabled by default)
+const isGoogleOAuthEnabled = process.env.ENABLE_GOOGLE_OAUTH === 'true' || 
+                              process.env.NEXT_PUBLIC_ENABLE_GOOGLE_OAUTH === 'true';
+
 export const authOptions: NextAuthOptions = {
   providers: [
-    GoogleProvider({
-      clientId: getGoogleClientId() || process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: getGoogleClientSecret() || process.env.GOOGLE_CLIENT_SECRET!,
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code",
-        },
+    // Credentials provider for email/password authentication
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
       },
-      allowDangerousEmailAccountLinking: true,
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required");
+        }
+
+        try {
+          const backendUrl = API_CONFIG.BASE_URL;
+          const response = await fetch(`${backendUrl}/api/auth/login`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || error.error || "Invalid credentials");
+          }
+
+          const data = await response.json();
+          const user = data.data?.user;
+
+          if (!user) {
+            throw new Error("Invalid credentials");
+          }
+
+          return {
+            id: user.id.toString(),
+            email: user.email,
+            name: user.name || null,
+            image: user.image || null,
+            role: user.role || "viewer",
+          };
+        } catch (error: any) {
+          console.error("Credentials authorization error:", error);
+          throw new Error(error.message || "Failed to authenticate");
+        }
+      },
     }),
+    // Google OAuth provider (only if enabled)
+    ...(isGoogleOAuthEnabled
+      ? [
+          GoogleProvider({
+            clientId: getGoogleClientId() || process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: getGoogleClientSecret() || process.env.GOOGLE_CLIENT_SECRET!,
+            authorization: {
+              params: {
+                prompt: "consent",
+                access_type: "offline",
+                response_type: "code",
+              },
+            },
+            allowDangerousEmailAccountLinking: true,
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     async jwt({ token, user, account }) {
@@ -60,7 +120,13 @@ export const authOptions: NextAuthOptions = {
         try {
           // Use API_CONFIG for consistent backend URL
           const backendUrl = API_CONFIG.BASE_URL;
-          const url = `${backendUrl}/api/users/by-email?email=${encodeURIComponent(userEmail)}`;
+          
+          // For OAuth users, sync profile data (name, image) to backend
+          // For credentials users, just fetch role
+          const isOAuthUser = account?.provider !== 'credentials';
+          const url = isOAuthUser && user?.name
+            ? `${backendUrl}/api/users/by-email?email=${encodeURIComponent(userEmail)}&name=${encodeURIComponent(user.name || '')}&image=${encodeURIComponent(user.image || '')}`
+            : `${backendUrl}/api/users/by-email?email=${encodeURIComponent(userEmail)}`;
           console.log(`[Auth] Fetching role from backend: ${url}`);
           
           // Add timeout to prevent hanging requests
@@ -138,11 +204,16 @@ export const authOptions: NextAuthOptions = {
       }
 
       // On first sign-in, store user info in token
-      if (user && account) {
+      if (user) {
         token.sub = user.id?.toString() || user.email || "";
         token.email = user.email || "";
         token.name = user.name || "";
         token.image = user.image || "";
+        
+        // For credentials-based login, role is already set in user object
+        if (user.role) {
+          token.role = user.role as UserRole;
+        }
       }
       
       return token;
