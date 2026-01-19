@@ -5,6 +5,7 @@ import { getStockAnalysisServer } from "@/lib/stock-api";
 import { getCurrentUser } from "@/lib/auth-utils";
 import { canViewStockAnalyses } from "@/lib/client-auth";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
 async function loadStockAnalysis(id: string): Promise<StockAnalysis | null> {
   try {
@@ -42,21 +43,43 @@ async function loadStockAnalysis(id: string): Promise<StockAnalysis | null> {
   }
 }
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  return {
+    title: `Stock Analysis #${id}`,
+    description: `View detailed stock analysis for ID ${id}`,
+  };
+}
+
 export default async function StockAnalysisPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  const analysis = await loadStockAnalysis(id);
+  try {
+    const { id } = await params;
+    
+    if (!id) {
+      return notFound();
+    }
 
-  if (!analysis) {
+    const analysis = await loadStockAnalysis(id);
+
+    if (!analysis) {
+      return notFound();
+    }
+
+    return (
+      <div className="container mx-auto p-6">
+        <StockAnalysisDetail analysis={analysis} />
+      </div>
+    );
+  } catch (error) {
+    console.error("Error in StockAnalysisPage:", error);
     return notFound();
   }
-
-  return (
-    <div className="container mx-auto p-6">
-      <StockAnalysisDetail analysis={analysis} />
-    </div>
-  );
 }
