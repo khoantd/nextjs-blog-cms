@@ -4,6 +4,7 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 import { Navigation } from '@/components/navigation';
 import { UserMenu } from '@/components/user-menu';
+import { PasswordRedirect } from '@/components/password-redirect';
 import { Button } from '@/components/ui/button';
 
 const geistSans = localFont({
@@ -34,6 +35,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <Providers>
+          <PasswordRedirect />
           <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 text-slate-900">
             {/* Enhanced Header */}
             <header className="bg-white/95 backdrop-blur-sm border-b border-slate-200/80 sticky top-0 z-50">

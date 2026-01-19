@@ -18,3 +18,12 @@ NEXT_PUBLIC_VNSTOCK_API_URL=http://72.60.233.159:8002
 # Optional: Vnstock auto-login credentials (for development only)
 # VNSTOCK_USERNAME=your_username
 # VNSTOCK_PASSWORD=your_password
+
+# Password Priority Users (comma-separated emails)
+# Users listed here will prioritize password login over Google OAuth
+# If a user has a password set, Google OAuth will be hidden/blocked for them
+# Example: PASSWORD_PRIORITY_USERS=user1@example.com,user2@example.com
+# Note: Use PASSWORD_PRIORITY_USERS for server-side (lib/auth.ts)
+#       Use NEXT_PUBLIC_PASSWORD_PRIORITY_USERS for client-side (app/auth/signin/page.tsx)
+# PASSWORD_PRIORITY_USERS=khoa0702@gmail.com
+# NEXT_PUBLIC_PASSWORD_PRIORITY_USERS=khoa0702@gmail.com

@@ -37,6 +37,24 @@ if (process.env.NODE_ENV === "development") {
 const isGoogleOAuthEnabled = process.env.ENABLE_GOOGLE_OAUTH === 'true' || 
                               process.env.NEXT_PUBLIC_ENABLE_GOOGLE_OAUTH === 'true';
 
+/**
+ * Get list of users who should prioritize password login over Google OAuth
+ * Configured via PASSWORD_PRIORITY_USERS environment variable (comma-separated emails)
+ * Example: PASSWORD_PRIORITY_USERS=user1@example.com,user2@example.com
+ */
+export function getPasswordPriorityUsers(): string[] {
+  const envUsers = process.env.PASSWORD_PRIORITY_USERS;
+  if (!envUsers) {
+    // Default fallback for backward compatibility
+    return ['khoa0702@gmail.com'];
+  }
+  
+  return envUsers
+    .split(',')
+    .map(email => email.trim().toLowerCase())
+    .filter(email => email.length > 0);
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     // Credentials provider for email/password authentication
@@ -159,6 +177,31 @@ export const authOptions: NextAuthOptions = {
             } else {
               console.log(`[Auth] ⚠️ Invalid role in response: ${data.data?.role}`);
             }
+            
+            // Check password status for OAuth users (non-blocking)
+            if (isOAuthUser && userEmail) {
+              // Use a separate fetch without timeout to avoid blocking auth flow
+              fetch(
+                `${backendUrl}/api/auth/password-status?email=${encodeURIComponent(userEmail)}`,
+                {
+                  method: 'GET',
+                  headers: { 'Content-Type': 'application/json' },
+                  cache: 'no-store',
+                }
+              )
+                .then(async (passwordStatusResponse) => {
+                  if (passwordStatusResponse.ok) {
+                    const passwordStatusData = await passwordStatusResponse.json();
+                    const requiresPassword = passwordStatusData.data?.requiresPassword ?? false;
+                    token.requiresPassword = requiresPassword;
+                    console.log(`[Auth] Password status for ${userEmail}: requiresPassword=${requiresPassword}`);
+                  }
+                })
+                .catch((passwordError) => {
+                  // Don't fail auth if password status check fails
+                  console.warn(`[Auth] Failed to check password status:`, passwordError);
+                });
+            }
           } else if (response.status === 404) {
             // User not found in database, will use environment variable fallback
             // Note: Backend should auto-create users, so 404 might indicate backend issue
@@ -231,9 +274,48 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name as string;
         session.user.image = token.image as string;
       }
+      // Expose password requirement status in session
+      if (token.requiresPassword !== undefined) {
+        (session as any).requiresPassword = token.requiresPassword;
+      }
       return session;
     },
     async signIn({ user, account, profile }) {
+      // Block Google OAuth for users who should prioritize password login
+      if (account?.provider === 'google' && user?.email) {
+        const passwordPriorityUsers = getPasswordPriorityUsers();
+        const email = user.email.toLowerCase();
+        
+        if (passwordPriorityUsers.includes(email)) {
+          try {
+            // Check if user has password set
+            const backendUrl = API_CONFIG.BASE_URL;
+            const response = await fetch(
+              `${backendUrl}/api/auth/password-status?email=${encodeURIComponent(email)}`,
+              {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                cache: 'no-store',
+              }
+            );
+
+            if (response.ok) {
+              const data = await response.json();
+              const hasPassword = data.data?.hasPassword ?? false;
+              
+              if (hasPassword) {
+                // Block Google OAuth and redirect to password login
+                console.log(`[Auth] Blocking Google OAuth for ${email} - password login is prioritized`);
+                return `/auth/signin?error=PasswordLoginRequired&email=${encodeURIComponent(email)}`;
+              }
+            }
+          } catch (error) {
+            console.warn(`[Auth] Failed to check password status for ${email}:`, error);
+            // On error, allow sign-in to proceed (fail open)
+          }
+        }
+      }
+      
       // Allow sign in without database
       return true;
     },

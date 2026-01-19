@@ -21,5 +21,12 @@ declare module "next-auth/jwt" {
     email: string;
     name: string;
     image: string;
+    requiresPassword?: boolean;
+  }
+}
+
+declare module "next-auth" {
+  interface Session {
+    requiresPassword?: boolean;
   }
 }

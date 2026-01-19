@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,30 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
+import { API_CONFIG } from "@/lib/api-config";
 
 // Check if Google OAuth is enabled (NEXT_PUBLIC_ vars are available in client components)
 const isGoogleOAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_OAUTH === 'true';
+
+/**
+ * Get list of users who should prioritize password login over Google OAuth
+ * Configured via NEXT_PUBLIC_PASSWORD_PRIORITY_USERS environment variable (comma-separated emails)
+ * Example: NEXT_PUBLIC_PASSWORD_PRIORITY_USERS=user1@example.com,user2@example.com
+ */
+function getPasswordPriorityUsers(): string[] {
+  const envUsers = process.env.NEXT_PUBLIC_PASSWORD_PRIORITY_USERS;
+  if (!envUsers) {
+    // Default fallback for backward compatibility
+    return ['khoa0702@gmail.com'];
+  }
+  
+  return envUsers
+    .split(',')
+    .map(email => email.trim().toLowerCase())
+    .filter(email => email.length > 0);
+}
+
+const PASSWORD_PRIORITY_USERS = getPasswordPriorityUsers();
 
 // Prevent static generation
 export const dynamic = 'force-dynamic';
@@ -26,12 +47,59 @@ function SignInForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
   const registered = searchParams.get("registered") === "true";
+  const passwordRequired = searchParams.get("error") === "PasswordLoginRequired";
+  const emailFromError = searchParams.get("email") || "";
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailFromError);
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(passwordRequired ? "Please use your password to sign in instead of Google OAuth." : "");
   const [success, setSuccess] = useState(registered);
   const [isLoading, setIsLoading] = useState(false);
+  const [showGoogleOAuth, setShowGoogleOAuth] = useState(isGoogleOAuthEnabled);
+  const [checkingPassword, setCheckingPassword] = useState(false);
+
+  // Check if user has password when email changes (for password priority users)
+  useEffect(() => {
+    const checkPasswordStatus = async () => {
+      if (!email || !PASSWORD_PRIORITY_USERS.includes(email.toLowerCase())) {
+        setShowGoogleOAuth(isGoogleOAuthEnabled);
+        return;
+      }
+
+      setCheckingPassword(true);
+      try {
+        const response = await fetch(
+          `${API_CONFIG.BASE_URL}/api/auth/password-status?email=${encodeURIComponent(email)}`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const hasPassword = data.data?.hasPassword ?? false;
+          
+          // Hide Google OAuth if user has password (prioritize password login)
+          setShowGoogleOAuth(isGoogleOAuthEnabled && !hasPassword);
+        } else {
+          // If check fails, show Google OAuth as fallback
+          setShowGoogleOAuth(isGoogleOAuthEnabled);
+        }
+      } catch (error) {
+        console.warn('Failed to check password status:', error);
+        // On error, show Google OAuth as fallback
+        setShowGoogleOAuth(isGoogleOAuthEnabled);
+      } finally {
+        setCheckingPassword(false);
+      }
+    };
+
+    // Debounce the check
+    const timeoutId = setTimeout(checkPasswordStatus, 500);
+    return () => clearTimeout(timeoutId);
+  }, [email]);
 
   const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,7 +194,7 @@ function SignInForm() {
           </form>
 
           {/* Divider */}
-          {isGoogleOAuthEnabled && (
+          {showGoogleOAuth && (
             <>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -143,7 +211,7 @@ function SignInForm() {
                 className="w-full"
                 size="lg"
                 variant="outline"
-                disabled={isLoading}
+                disabled={isLoading || checkingPassword}
               >
                 <svg
                   className="mr-2 h-5 w-5"
@@ -170,6 +238,13 @@ function SignInForm() {
                 Continue with Google
               </Button>
             </>
+          )}
+          
+          {/* Message for password priority users */}
+          {email && PASSWORD_PRIORITY_USERS.includes(email.toLowerCase()) && !showGoogleOAuth && (
+            <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded text-center">
+              Please use your password to sign in.
+            </div>
           )}
 
           {/* Register Link */}

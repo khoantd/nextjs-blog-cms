@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { API_CONFIG } from '@/lib/api-config';
 import { z } from 'zod';
 
+// Route segment config - ensure this route is handled dynamically
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+// Ensure this route is matched before NextAuth catch-all
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+};
+
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -9,8 +22,12 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  console.log('[Register Route] POST /api/auth/register - Route handler called');
+  console.log('[Register Route] Request URL:', request.url);
+  
   try {
     const body = await request.json();
+    console.log('[Register Route] Request body received:', { email: body?.email, hasPassword: !!body?.password });
 
     // Validate input
     const validation = registerSchema.safeParse(body);

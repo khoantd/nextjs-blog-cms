@@ -1,6 +1,7 @@
 "use client";
 
 import { VnstockApiConfig } from "@/components/vnstock-api-config";
+import { PasswordSettings } from "@/components/password-settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings as SettingsIcon } from "lucide-react";
 
@@ -18,6 +19,9 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-6">
+        {/* Password Settings */}
+        <PasswordSettings />
+
         {/* Vnstock API Configuration */}
         <VnstockApiConfig />
 
