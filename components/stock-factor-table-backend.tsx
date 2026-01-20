@@ -278,9 +278,9 @@ export function StockFactorTableBackend({
         }
       }, 800);
 
-      // Use the analyze endpoint which regenerates factors
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      const response = await fetch(`${baseUrl}/api/stock-analyses/${analysisId}/analyze`, {
+      // Use the Next.js API route (same-origin) to avoid HTTPS upgrade issues
+      // The API route will proxy the request to the backend server-side
+      const response = await fetch(`/api/stock-analyses/${analysisId}/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
