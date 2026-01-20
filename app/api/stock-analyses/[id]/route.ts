@@ -149,18 +149,66 @@ export async function DELETE(
     
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Stock Analysis DELETE API Error:', error);
-    console.error('Stock Analysis DELETE API Error Details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    console.error('[DELETE /api/stock-analyses/[id]] Error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStatus = (error as any)?.status || 500;
+    const isConnectionError = (error as any)?.isConnectionError || false;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://72.60.233.159:3050';
+    
+    // Provide more detailed error information for connection errors
+    if (isConnectionError) {
+      return NextResponse.json(
+        { 
+          error: 'Backend connection failed',
+          message: `Cannot connect to backend at ${backendUrl}. Please check:\n1. Backend server is running\n2. NEXT_PUBLIC_API_URL is set correctly in .env.local\n3. Network connectivity is available`,
+          backendUrl,
+          details: (error as any)?.details || {},
+        },
+        { status: 503 }
+      );
+    }
+    
+    // Handle authentication errors
+    if (errorStatus === 401 || errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+      return NextResponse.json(
+        { 
+          error: 'Unauthorized',
+          message: 'Authentication required. Please sign in.',
+        },
+        { status: 401 }
+      );
+    }
+    
+    // Handle permission errors
+    if (errorStatus === 403 || errorMessage.includes('403') || errorMessage.includes('permission')) {
+      return NextResponse.json(
+        { 
+          error: 'Insufficient permissions',
+          message: 'Only admins can delete stock analyses.',
+        },
+        { status: 403 }
+      );
+    }
+    
+    // Handle not found errors
+    if (errorStatus === 404 || errorMessage.includes('404') || errorMessage.includes('not found')) {
+      return NextResponse.json(
+        { 
+          error: 'Stock analysis not found',
+          message: `No stock analysis found with ID ${id}`,
+        },
+        { status: 404 }
+      );
+    }
     
     return NextResponse.json(
       { 
         error: 'Failed to delete stock analysis',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: errorMessage,
+        details: (error as any)?.details || {},
       },
-      { status: error instanceof Error && error.message.includes('401') ? 401 : 500 }
+      { status: errorStatus }
     );
   }
 }
