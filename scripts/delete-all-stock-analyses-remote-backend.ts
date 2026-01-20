@@ -105,8 +105,28 @@ async function deleteAllStockAnalysesRemoteBackend(confirm: boolean = false, coo
         }
 
         const data = await response.json();
-        const analyses = data.data || data.analyses || [];
-        const total = data.total || data.count || 0;
+        
+        // Handle different response formats
+        let analyses: any[] = [];
+        let total = 0;
+        
+        if (data.data && data.data.items) {
+          // Backend paginated format: { data: { items: [...], pagination: {...} } }
+          analyses = data.data.items || [];
+          total = data.data.pagination?.total || data.data.pagination?.count || 0;
+        } else if (data.data && Array.isArray(data.data)) {
+          // Direct array format: { data: [...] }
+          analyses = data.data;
+          total = data.pagination?.total || data.total || analyses.length;
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          analyses = data;
+          total = analyses.length;
+        } else {
+          // Fallback
+          analyses = data.analyses || data.items || [];
+          total = data.total || data.count || 0;
+        }
 
         if (Array.isArray(analyses)) {
           allAnalyses.push(...analyses);

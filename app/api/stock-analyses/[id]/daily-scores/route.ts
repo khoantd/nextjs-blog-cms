@@ -29,6 +29,7 @@ export async function GET(
     const limit = searchParams.get('limit') || '50';
     const orderBy = searchParams.get('orderBy') || 'date';
     const order = searchParams.get('order') || 'desc';
+    const threshold = searchParams.get('threshold');
     
     // Get backend URL from API_CONFIG - defaults to remote backend (http://72.60.233.159:3050)
     const backendUrl = API_CONFIG.BASE_URL;
@@ -43,8 +44,19 @@ export async function GET(
       console.warn('[GET /api/stock-analyses/[id]/daily-scores] WARNING: Using localhost backend. Set NEXT_PUBLIC_API_URL=http://72.60.233.159:3050 to use remote backend.');
     }
     
+    // Build query string with all parameters including threshold if provided
+    const queryParams = new URLSearchParams({
+      page,
+      limit,
+      orderBy,
+      order,
+    });
+    if (threshold) {
+      queryParams.set('threshold', threshold);
+    }
+    
     // Forward the request to backend API with cookies, including all query parameters
-    const endpoint = `/api/stock-analyses/${numericId}/daily-scores?page=${page}&limit=${limit}&orderBy=${orderBy}&order=${order}`;
+    const endpoint = `/api/stock-analyses/${numericId}/daily-scores?${queryParams.toString()}`;
     const data = await serverApiRequestWithCookies(
       endpoint,
       request

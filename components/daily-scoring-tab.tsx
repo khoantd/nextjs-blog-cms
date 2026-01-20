@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { DailyScoreCard, DailyScoreList } from "@/components/daily-score-card";
 import { DailyPredictionCard, DailyPredictionSummary } from "@/components/daily-prediction";
 import { 
@@ -89,6 +90,8 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
   const [predictionSortBy, setPredictionSortBy] = useState<'date' | 'score' | 'confidence' | 'prediction'>('date');
   const [predictionSortOrder, setPredictionSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
+  const [threshold, setThreshold] = useState<number>(DEFAULT_DAILY_SCORE_CONFIG.threshold);
+  const [isUpdatingThreshold, setIsUpdatingThreshold] = useState(false);
 
   const fetchPredictions = async (sortBy?: string, sortOrder?: string) => {
     try {
@@ -138,7 +141,9 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
 
     try {
       // Use Next.js API proxy route to avoid CORS issues
-      const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/daily-scores?page=${page}&limit=${pageSize}&orderBy=date&order=desc`, {
+      // Include threshold in query params if it differs from default
+      const thresholdParam = threshold !== DEFAULT_DAILY_SCORE_CONFIG.threshold ? `&threshold=${threshold}` : '';
+      const response = await fetch(`/api/stock-analyses/${stockAnalysisId}/daily-scores?page=${page}&limit=${pageSize}&orderBy=date&order=desc${thresholdParam}`, {
         method: 'GET',
         credentials: 'include',
       });
@@ -219,7 +224,7 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
           dailyScores: scores,
           predictions: predictions, // Fetch predictions from API
           scoreConfig: {
-            threshold: DEFAULT_DAILY_SCORE_CONFIG.threshold,
+            threshold: threshold, // Use current threshold state
             weights: DEFAULT_DAILY_SCORE_CONFIG.weights,
             minFactorsRequired: DEFAULT_DAILY_SCORE_CONFIG.minFactorsRequired,
           },
@@ -234,6 +239,10 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
         
         setData(transformedData);
         setCurrentPage(page);
+        // Update threshold state when data is loaded
+        if (transformedData.scoreConfig.threshold) {
+          setThreshold(transformedData.scoreConfig.threshold);
+        }
         console.log(`✅ Loaded ${scores.length} daily scores from backend (page ${page}/${pagination?.totalPages || 1})`);
         if (predictions.length > 0) {
           console.log(`✅ Loaded ${predictions.length} predictions`);
@@ -253,7 +262,7 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
           dailyScores: [],
           predictions: predictions,
           scoreConfig: {
-            threshold: DEFAULT_DAILY_SCORE_CONFIG.threshold,
+            threshold: threshold, // Use current threshold state
             weights: DEFAULT_DAILY_SCORE_CONFIG.weights,
             minFactorsRequired: DEFAULT_DAILY_SCORE_CONFIG.minFactorsRequired,
           },
@@ -302,6 +311,25 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleUpdateThreshold = async () => {
+    if (threshold < 0 || threshold > 1) {
+      setError('Threshold must be between 0 and 1 (0% to 100%)');
+      return;
+    }
+
+    setIsUpdatingThreshold(true);
+    setError(null);
+
+    try {
+      // Reload scores with new threshold (threshold is passed as query param)
+      await fetchDailyScoring(currentPage);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update threshold');
+    } finally {
+      setIsUpdatingThreshold(false);
+    }
   };
 
   const handleRegenerateDailyScoring = async () => {
@@ -603,9 +631,47 @@ export function DailyScoringTab({ stockAnalysisId, csvFilePath, symbol = "STOCK"
                       <span>Minimum Score:</span>
                       <span className="font-medium text-red-600">{data.analysis.minScore.toFixed(3)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Threshold:</span>
-                      <span className="font-medium">{(data.scoreConfig.threshold * 100).toFixed(0)}%</span>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span>Threshold:</span>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={(threshold * 100).toFixed(1)}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              if (!isNaN(value) && value >= 0 && value <= 100) {
+                                setThreshold(value / 100);
+                              }
+                            }}
+                            className="w-20 h-8 text-sm"
+                            disabled={isUpdatingThreshold}
+                          />
+                          <span className="text-sm">%</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleUpdateThreshold}
+                            disabled={isUpdatingThreshold || threshold === data.scoreConfig.threshold}
+                            className="h-8"
+                          >
+                            {isUpdatingThreshold ? (
+                              <>
+                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                Updating...
+                              </>
+                            ) : (
+                              'Update'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Current: {(data.scoreConfig.threshold * 100).toFixed(0)}%
+                      </div>
                     </div>
                     <div className="flex justify-between">
                       <span>Min Factors Required:</span>
