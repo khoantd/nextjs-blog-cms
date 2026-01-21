@@ -6,9 +6,21 @@ export interface Transaction {
   tx: number;
   date: string;
   close: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
   pctChange: number;
   factors?: StockFactor[];
   factorCount?: number;
+  // Technical indicators
+  ma20?: number;
+  ma50?: number;
+  ma200?: number;
+  rsi?: number;
+  // Daily scores
+  score?: number;
+  aboveThreshold?: boolean;
 }
 
 export interface StockAnalysisResult {

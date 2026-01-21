@@ -62,6 +62,7 @@ export function StockAnalysisDetail({ analysis: initialAnalysis }: StockAnalysis
     if (results) {
       console.log('Results.transactions:', results.transactions);
       console.log('Transactions count:', results.transactions?.length || 0);
+      console.log('TransactionsFound:', results.transactionsFound);
       console.log('Total days:', results.totalDays);
       console.log('Period info in results:', (results as any).periodInfo);
       if (results.transactions && results.transactions.length > 0) {
@@ -939,7 +940,9 @@ export function StockAnalysisDetail({ analysis: initialAnalysis }: StockAnalysis
                   </div>
                   <span className="text-sm font-semibold text-green-800">Transactions</span>
                 </div>
-                <span className="text-3xl font-bold text-green-900">{results?.transactionsFound || 0}</span>
+                <span className="text-3xl font-bold text-green-900">
+                  {results?.transactionsFound ?? results?.transactions?.length ?? 0}
+                </span>
               </div>
             </div>
             
@@ -1502,6 +1505,9 @@ export function StockAnalysisDetail({ analysis: initialAnalysis }: StockAnalysis
                             </div>
                           </th>
                           <th className="text-left p-3 font-bold text-slate-900">Factors</th>
+                          <th className="text-right p-3 font-bold text-slate-900">Volume</th>
+                          <th className="text-right p-3 font-bold text-slate-900">Score</th>
+                          <th className="text-left p-3 font-bold text-slate-900">Indicators</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1537,11 +1543,18 @@ export function StockAnalysisDetail({ analysis: initialAnalysis }: StockAnalysis
                               {new Date(transaction.date).toLocaleDateString()}
                             </td>
                             <td className="p-3 text-right font-medium">
-                              {formatPrice(transaction.close, analysis.symbol)}
+                              <div className="flex flex-col">
+                                {formatPrice(transaction.close, analysis.symbol)}
+                                {transaction.open && transaction.high && transaction.low && (
+                                  <span className="text-xs text-muted-foreground">
+                                    O:{formatPrice(transaction.open, analysis.symbol)} H:{formatPrice(transaction.high, analysis.symbol)} L:{formatPrice(transaction.low, analysis.symbol)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3 text-right">
                               <Badge variant="outline" className="bg-green-100 text-green-800 border-2 border-green-400 font-semibold">
-                                +{transaction.pctChange}%
+                                +{transaction.pctChange.toFixed(2)}%
                               </Badge>
                             </td>
                             <td className="p-3">
@@ -1573,6 +1586,54 @@ export function StockAnalysisDetail({ analysis: initialAnalysis }: StockAnalysis
                                   </>
                                 ) : (
                                   <span className="text-xs text-muted-foreground">None</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 text-right text-sm">
+                              {transaction.volume ? (
+                                <span className="text-muted-foreground">
+                                  {transaction.volume.toLocaleString()}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right">
+                              {transaction.score !== undefined ? (
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs font-semibold ${
+                                    transaction.aboveThreshold 
+                                      ? 'bg-blue-100 text-blue-800 border-blue-400' 
+                                      : 'bg-gray-100 text-gray-600 border-gray-300'
+                                  }`}
+                                  title={transaction.aboveThreshold ? 'Above threshold' : 'Below threshold'}
+                                >
+                                  {transaction.score.toFixed(1)}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex flex-wrap gap-1 text-xs">
+                                {transaction.ma20 !== undefined && (
+                                  <span className="text-muted-foreground" title="20-day Moving Average">
+                                    MA20: {transaction.ma20.toFixed(2)}
+                                  </span>
+                                )}
+                                {transaction.ma50 !== undefined && (
+                                  <span className="text-muted-foreground" title="50-day Moving Average">
+                                    MA50: {transaction.ma50.toFixed(2)}
+                                  </span>
+                                )}
+                                {transaction.rsi !== undefined && (
+                                  <span className={`font-medium ${transaction.rsi > 70 ? 'text-red-600' : transaction.rsi < 30 ? 'text-green-600' : 'text-gray-600'}`} title="Relative Strength Index">
+                                    RSI: {transaction.rsi.toFixed(1)}
+                                  </span>
+                                )}
+                                {!transaction.ma20 && !transaction.ma50 && !transaction.rsi && (
+                                  <span className="text-muted-foreground">-</span>
                                 )}
                               </div>
                             </td>
