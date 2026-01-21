@@ -120,8 +120,12 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined;
+  let numericId: number | undefined;
+  
   try {
-    const { id } = await params;
+    const paramsData = await params;
+    id = paramsData.id;
     
     // Validate id parameter
     if (!id || id === 'undefined' || id === 'null' || id === 'NaN') {
@@ -131,7 +135,7 @@ export async function DELETE(
       );
     }
 
-    const numericId = parseInt(id, 10);
+    numericId = parseInt(id, 10);
     if (isNaN(numericId) || numericId <= 0) {
       return NextResponse.json(
         { error: 'Invalid stock analysis ID' },
@@ -196,7 +200,7 @@ export async function DELETE(
       return NextResponse.json(
         { 
           error: 'Stock analysis not found',
-          message: `No stock analysis found with ID ${id}`,
+          message: id ? `No stock analysis found with ID ${id}` : 'No stock analysis found',
         },
         { status: 404 }
       );
