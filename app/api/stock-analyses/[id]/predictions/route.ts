@@ -25,11 +25,15 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const orderBy = searchParams.get('orderBy') || 'date';
-    const order = searchParams.get('order') || 'desc';
+    
+    // Forward all query parameters to backend API
+    const queryParams = new URLSearchParams();
+    searchParams.forEach((value, key) => {
+      queryParams.append(key, value);
+    });
     
     // Forward the request to backend API with cookies
-    const endpoint = `/api/stock-analyses/${numericId}/predictions?orderBy=${orderBy}&order=${order}`;
+    const endpoint = `/api/stock-analyses/${numericId}/predictions?${queryParams.toString()}`;
     const data = await serverApiRequestWithCookies(
       endpoint,
       request
