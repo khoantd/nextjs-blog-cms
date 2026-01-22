@@ -1617,22 +1617,24 @@ export function StockAnalysisDetail({ analysis: initialAnalysis }: StockAnalysis
                             </td>
                             <td className="p-3">
                               <div className="flex flex-wrap gap-1 text-xs">
-                                {transaction.ma20 !== undefined && (
+                                {transaction.ma20 != null && !isNaN(transaction.ma20) && (
                                   <span className="text-muted-foreground" title="20-day Moving Average">
                                     MA20: {transaction.ma20.toFixed(2)}
                                   </span>
                                 )}
-                                {transaction.ma50 !== undefined && (
+                                {transaction.ma50 != null && !isNaN(transaction.ma50) && (
                                   <span className="text-muted-foreground" title="50-day Moving Average">
                                     MA50: {transaction.ma50.toFixed(2)}
                                   </span>
                                 )}
-                                {transaction.rsi !== undefined && (
+                                {transaction.rsi != null && !isNaN(transaction.rsi) && (
                                   <span className={`font-medium ${transaction.rsi > 70 ? 'text-red-600' : transaction.rsi < 30 ? 'text-green-600' : 'text-gray-600'}`} title="Relative Strength Index">
                                     RSI: {transaction.rsi.toFixed(1)}
                                   </span>
                                 )}
-                                {!transaction.ma20 && !transaction.ma50 && !transaction.rsi && (
+                                {(transaction.ma20 == null || isNaN(transaction.ma20)) && 
+                                 (transaction.ma50 == null || isNaN(transaction.ma50)) && 
+                                 (transaction.rsi == null || isNaN(transaction.rsi)) && (
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </div>

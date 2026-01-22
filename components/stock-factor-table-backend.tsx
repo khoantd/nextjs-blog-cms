@@ -696,13 +696,13 @@ export function StockFactorTableBackend({
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="text-xs space-y-1">
-                              {factor.technicalIndicators?.ma20 && (
+                              {factor.technicalIndicators?.ma20 != null && !isNaN(factor.technicalIndicators.ma20) && (
                                 <div>MA20: {formatPrice(factor.technicalIndicators.ma20, symbol)}</div>
                               )}
-                              {factor.technicalIndicators?.ma50 && (
+                              {factor.technicalIndicators?.ma50 != null && !isNaN(factor.technicalIndicators.ma50) && (
                                 <div>MA50: {formatPrice(factor.technicalIndicators.ma50, symbol)}</div>
                               )}
-                              {factor.technicalIndicators?.rsi && (
+                              {factor.technicalIndicators?.rsi != null && !isNaN(factor.technicalIndicators.rsi) && (
                                 <div>RSI: {factor.technicalIndicators.rsi.toFixed(1)}</div>
                               )}
                             </div>
