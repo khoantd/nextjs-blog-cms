@@ -6,29 +6,32 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 import { TrendingUp, Upload, Loader2, AlertCircle, TrendingDown, DollarSign, Star, BarChart3, Calendar } from "lucide-react";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
 import { formatPrice } from "@/lib/currency-utils";
 import { getStockAnalyses } from "@/lib/stock-api";
-
-interface ApiResponse<T> {
-  data: T;
-  error?: string;
-}
-
-const fetcher = async () => {
-  try {
-    const response = await getStockAnalyses();
-    return response;
-  } catch (error) {
-    throw new Error('Failed to fetch');
-  }
-};
+import type { PaginatedResponse } from "@/lib/utils";
 
 export function StockAnalysisList() {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(12); // 12 items per page (4 columns x 3 rows)
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const { data, error, isLoading, mutate } = useSWR(
-    "stock-analyses",
+  
+  // Create SWR key that includes pagination parameters
+  const swrKey = `stock-analyses?page=${currentPage}&limit=${pageSize}`;
+  
+  const fetcher = async () => {
+    try {
+      const response = await getStockAnalyses(currentPage, pageSize);
+      return response;
+    } catch (error) {
+      throw new Error('Failed to fetch');
+    }
+  };
+
+  const { data, error, isLoading, mutate } = useSWR<PaginatedResponse<StockAnalysis>>(
+    swrKey,
     fetcher,
     {
       refreshInterval: 5000,
@@ -70,6 +73,12 @@ export function StockAnalysisList() {
       console.error('Error updating favorite status:', err);
       // You could show a toast notification here if you have one
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Scroll to top when page changes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const getStatusColor = (status: string | null) => {
@@ -132,17 +141,24 @@ export function StockAnalysisList() {
   }
 
   const analyses = data?.data || [];
+  const pagination = data?.pagination;
 
-  // Filter and sort analyses
-  const filteredAndSortedAnalyses = analyses
-    .filter((analysis: StockAnalysis) => !showFavoritesOnly || analysis.favorite)
-    .sort((a: StockAnalysis, b: StockAnalysis) => {
-      // Sort by favorite status first (favorites first), then by creation date
-      if (a.favorite && !b.favorite) return -1;
-      if (!a.favorite && b.favorite) return 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+  // Filter analyses (client-side filtering for favorites)
+  // Note: For large datasets, consider moving favorites filter to server-side
+  const filteredAnalyses = analyses.filter((analysis: StockAnalysis) => 
+    !showFavoritesOnly || analysis.favorite
+  );
 
+  // Sort analyses (client-side sorting)
+  const sortedAnalyses = [...filteredAnalyses].sort((a: StockAnalysis, b: StockAnalysis) => {
+    // Sort by favorite status first (favorites first), then by creation date
+    if (a.favorite && !b.favorite) return -1;
+    if (!a.favorite && b.favorite) return 1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  // Calculate favorite count from current page data
+  // Note: For accurate total favorite count, we'd need a separate API endpoint
   const favoriteCount = analyses.filter((analysis: StockAnalysis) => analysis.favorite).length;
 
   return (
@@ -160,7 +176,10 @@ export function StockAnalysisList() {
         <div className="flex items-center gap-3">
           <Button
             variant={showFavoritesOnly ? "default" : "outline"}
-            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            onClick={() => {
+              setShowFavoritesOnly(!showFavoritesOnly);
+              setCurrentPage(1); // Reset to first page when toggling filter
+            }}
             className="flex items-center gap-2 transition-all duration-200 hover:scale-105"
           >
             <Star className={`h-4 w-4 ${showFavoritesOnly ? "fill-current" : ""}`} />
@@ -211,8 +230,9 @@ export function StockAnalysisList() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredAndSortedAnalyses.map((analysis) => {
+        <>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {sortedAnalyses.map((analysis) => {
             const results = parseAnalysisResults(analysis.analysisResults);
             return (
               <Link key={analysis.id} href={`/stock-analysis/${analysis.id}`}>
@@ -376,7 +396,24 @@ export function StockAnalysisList() {
               </Link>
             );
           })}
-        </div>
+          </div>
+          
+          {/* Pagination Controls */}
+          {pagination && pagination.totalPages > 1 && (
+            <Card className="mt-6">
+              <CardContent className="p-4">
+                <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                  total={pagination.total}
+                  limit={pagination.limit}
+                  onPageChange={handlePageChange}
+                  loading={isLoading}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );
