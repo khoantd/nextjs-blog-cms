@@ -143,6 +143,16 @@ export function StockAnalysisList() {
   const analyses = data?.data || [];
   const pagination = data?.pagination;
 
+  // Debug: Log pagination data
+  if (data) {
+    console.log('[StockAnalysisList] Data received:', {
+      itemsCount: analyses.length,
+      pagination: pagination,
+      hasPagination: !!pagination,
+      totalPages: pagination?.totalPages,
+    });
+  }
+
   // Filter analyses (client-side filtering for favorites)
   // Note: For large datasets, consider moving favorites filter to server-side
   const filteredAnalyses = analyses.filter((analysis: StockAnalysis) => 
@@ -399,19 +409,27 @@ export function StockAnalysisList() {
           </div>
           
           {/* Pagination Controls */}
-          {pagination && pagination.totalPages > 1 && (
+          {pagination && (
             <Card className="mt-6">
               <CardContent className="p-4">
                 <Pagination
-                  currentPage={pagination.page}
-                  totalPages={pagination.totalPages}
-                  total={pagination.total}
-                  limit={pagination.limit}
+                  currentPage={pagination.page || currentPage}
+                  totalPages={pagination.totalPages || 1}
+                  total={pagination.total || analyses.length}
+                  limit={pagination.limit || pageSize}
                   onPageChange={handlePageChange}
                   loading={isLoading}
                 />
               </CardContent>
             </Card>
+          )}
+          
+          {/* Debug info - remove in production */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-4 bg-gray-100 rounded text-xs">
+              <strong>Debug Info:</strong>
+              <pre>{JSON.stringify({ pagination, currentPage, pageSize, itemsCount: analyses.length }, null, 2)}</pre>
+            </div>
           )}
         </>
       )}
