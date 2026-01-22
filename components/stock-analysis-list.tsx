@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
-import { TrendingUp, Upload, Loader2, AlertCircle, TrendingDown, DollarSign, Star, BarChart3, Calendar } from "lucide-react";
+import { TrendingUp, Upload, Loader2, AlertCircle, TrendingDown, DollarSign, Star, BarChart3, Calendar, Grid3x3, List } from "lucide-react";
 import type { StockAnalysis, StockAnalysisResult } from "@/lib/types/stock-analysis";
 import { formatPrice } from "@/lib/currency-utils";
 import { getStockAnalyses } from "@/lib/stock-api";
@@ -17,6 +17,7 @@ export function StockAnalysisList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(12); // 12 items per page (4 columns x 3 rows)
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   
   // Create SWR key that includes pagination parameters
   const swrKey = `stock-analyses?page=${currentPage}&limit=${pageSize}`;
@@ -184,6 +185,27 @@ export function StockAnalysisList() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center border rounded-lg p-1 bg-slate-50">
+            <Button
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("grid")}
+              className="flex items-center gap-2"
+            >
+              <Grid3x3 className="h-4 w-4" />
+              Grid
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="flex items-center gap-2"
+            >
+              <List className="h-4 w-4" />
+              List
+            </Button>
+          </div>
           <Button
             variant={showFavoritesOnly ? "default" : "outline"}
             onClick={() => {
@@ -241,11 +263,12 @@ export function StockAnalysisList() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {sortedAnalyses.map((analysis) => {
-            const results = parseAnalysisResults(analysis.analysisResults);
-            return (
-              <Link key={analysis.id} href={`/stock-analysis/${analysis.id}`}>
+          {viewMode === "grid" ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {sortedAnalyses.map((analysis) => {
+              const results = parseAnalysisResults(analysis.analysisResults);
+              return (
+                <Link key={analysis.id} href={`/stock-analysis/${analysis.id}`}>
                 <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer h-full border-0 bg-white/90 backdrop-blur-sm hover:scale-[1.02] overflow-hidden">
                   {/* Card Header with Gradient Border */}
                   <div className="h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
@@ -406,7 +429,101 @@ export function StockAnalysisList() {
               </Link>
             );
           })}
-          </div>
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Symbol</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Price</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Change</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Transactions</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                      {sortedAnalyses.map((analysis) => {
+                        const results = parseAnalysisResults(analysis.analysisResults);
+                        return (
+                          <tr key={analysis.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Link href={`/stock-analysis/${analysis.id}`} className="flex items-center gap-2 group">
+                                <span className="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                  {analysis.symbol}
+                                </span>
+                                {analysis.favorite && (
+                                  <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                                )}
+                              </Link>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-slate-600">{analysis.name || "—"}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-semibold text-slate-900">
+                                {formatPriceWithNull(analysis.latestPrice, analysis.symbol)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className={`text-sm font-medium ${formatPriceChange(analysis.priceChange, analysis.priceChangePercent).color}`}>
+                                {formatPriceChange(analysis.priceChange, analysis.priceChangePercent).text}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Badge className={`${getStatusColor(analysis.status)} text-white border-0`}>
+                                {analysis.status || "draft"}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-slate-600">
+                                {results?.transactionsFound || "—"}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-slate-500">
+                                {new Date(analysis.createdAt).toLocaleDateString()}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    try {
+                                      await handleToggleFavorite(e, analysis.id, analysis.favorite);
+                                    } catch (error) {
+                                      console.error('Error toggling favorite:', error);
+                                    }
+                                  }}
+                                  className={`shrink-0 ${analysis.favorite ? "text-yellow-600 border-yellow-300" : ""}`}
+                                >
+                                  <Star className={`h-4 w-4 ${analysis.favorite ? "fill-current" : ""}`} />
+                                </Button>
+                                <Link href={`/stock-analysis/${analysis.id}`}>
+                                  <Button variant="outline" size="sm">
+                                    View
+                                  </Button>
+                                </Link>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           {/* Pagination Controls */}
           {pagination && (

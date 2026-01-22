@@ -159,6 +159,21 @@ export function AIInsightsOverview() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Debug: Log pagination info
+  useEffect(() => {
+    if (filteredInsights.length > 0) {
+      console.log('[AI Insights Overview] Pagination info:', {
+        totalInsights: filteredInsights.length,
+        pageSize,
+        currentPage,
+        totalPages,
+        startIndex,
+        endIndex,
+        showingItems: paginatedInsights.length,
+      });
+    }
+  }, [filteredInsights.length, currentPage, pageSize, totalPages, startIndex, endIndex, paginatedInsights.length]);
+
   const parseInsights = (insights: any) => {
     if (!insights) return null;
 
@@ -475,7 +490,7 @@ export function AIInsightsOverview() {
           </div>
           
           {/* Pagination Controls */}
-          {filteredInsights.length > pageSize && (
+          {filteredInsights.length > 0 && (
             <Card className="mt-6">
               <CardContent className="p-4">
                 <Pagination
@@ -488,6 +503,22 @@ export function AIInsightsOverview() {
                 />
               </CardContent>
             </Card>
+          )}
+          
+          {/* Debug info - remove in production */}
+          {process.env.NODE_ENV === 'development' && filteredInsights.length > 0 && (
+            <div className="mt-4 p-4 bg-gray-100 rounded text-xs">
+              <strong>Debug Info:</strong>
+              <pre>{JSON.stringify({ 
+                totalInsights: filteredInsights.length, 
+                pageSize, 
+                currentPage, 
+                totalPages,
+                showingItems: paginatedInsights.length,
+                startIndex,
+                endIndex
+              }, null, 2)}</pre>
+            </div>
           )}
         </>
       )}
