@@ -211,7 +211,7 @@ export function StockAnalysisList() {
         </Card>
       )}
 
-      {filteredAndSortedAnalyses.length === 0 && !showFavoritesOnly ? (
+      {sortedAnalyses.length === 0 && !showFavoritesOnly ? (
         <Card className="border-dashed border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
           <CardContent className="flex flex-col items-center justify-center p-16">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mb-6">
