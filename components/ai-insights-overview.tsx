@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Brain, 
@@ -56,6 +57,8 @@ export function AIInsightsOverview() {
   const [aiInsights, setAIInsights] = useState<AIInsight[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>("all");
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10); // 10 insights per page
   const [stats, setStats] = useState({
     totalInsights: 0,
     totalAnalyses: 0,
@@ -139,6 +142,22 @@ export function AIInsightsOverview() {
   const filteredInsights = selectedSymbol === "all" 
     ? aiInsights 
     : aiInsights.filter(i => i.symbol === selectedSymbol);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredInsights.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedInsights = filteredInsights.slice(startIndex, endIndex);
+
+  // Reset to page 1 when symbol filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedSymbol]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const parseInsights = (insights: any) => {
     if (!insights) return null;
@@ -337,8 +356,9 @@ export function AIInsightsOverview() {
 
       {/* AI Insights List */}
       {filteredInsights.length > 0 && (
-        <div className="space-y-4">
-          {filteredInsights.map((insight) => {
+        <>
+          <div className="space-y-4">
+            {paginatedInsights.map((insight) => {
             const parsed = parseInsights(insight.insights);
             if (!parsed) return null;
 
@@ -452,7 +472,24 @@ export function AIInsightsOverview() {
               </Card>
             );
           })}
-        </div>
+          </div>
+          
+          {/* Pagination Controls */}
+          {filteredInsights.length > pageSize && (
+            <Card className="mt-6">
+              <CardContent className="p-4">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  total={filteredInsights.length}
+                  limit={pageSize}
+                  onPageChange={handlePageChange}
+                  loading={isLoading}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Quick Actions */}
